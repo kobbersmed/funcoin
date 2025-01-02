@@ -14,6 +14,8 @@ from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
 
+import 329irqewr
+
 class funcoin:
     """
     Class for Functional Connectivity Integrative Normative Modelling (FUNCOIN).
@@ -52,7 +54,6 @@ class funcoin:
         self.gamma_steps_all = []
         self.beta_steps_all = []
         self.__fitted = False
-        print('HEYHEYHEY')
 
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
