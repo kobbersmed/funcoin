@@ -13,7 +13,6 @@ from scipy.linalg import fractional_matrix_power
 from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
-from io_funcs import save_data_arbitrary
 
 class funcoin:
     """
