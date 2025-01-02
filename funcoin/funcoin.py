@@ -20,19 +20,19 @@ class funcoin:
 
     Attributes:
     -----------
-    gamma_true: False or array-like of shape (q, n_comps). If provided, creates the FUNCOIN class with a predefined Gamma matrix. Defaults value False.
-    beta_mat: False or array-like of shape (n_covariates x n_comps). If provided, creates the FUNCOIN class with a predefined Beta matrix. Defaults value False.
+    gamma: False or array-like of shape (q, n_comps). If provided, creates the FUNCOIN class with a predefined Gamma matrix. Default value False.
+    beta: False or array-like of shape (n_covariates x n_comps). If provided, creates the FUNCOIN class with a predefined Beta matrix. Default value False.
     dfd_values_training: NaN or vector of size [number of projections] containing "deviation from diagonality" values for the data used to train the model (i.e. identify the projections).
                          The attribute is automatically defined when training the model. 
-    gamma_bootstrap, beta_bootstrap: Nan or list of length [number of bootstrap samples] containing gamma or beta matrices respectively from the bootstrapping procedure.
-                         The attribute is automatically defined when running the the method .decompose_bootstrap(...).
+    residual_std_train: NaN or array of length [no. of components]. Element j is the standard deviation of the residuals for the transformed values of projection j. 
+    beta_bootstrap: Nan or list of length [number of bootstrap samples] containing beta matrices from the bootstrapping procedure.
+                         The attribute is defined when running the method .decompose_bootstrap().
     gamma_CI, beta_CI: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for gamma or beta matrices.
                         These are determined from the bootstrapping procedure.
-    logZ_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values of the data the model was trained on.  
+    u_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values (u values) of the data the model was trained on.  
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
-    gamma_steps_all: Nan or list whose elements are array-like of shape (q, n_comps). Will be non-NaN after fitting the model with argument trace_sol=True. The list contains the gamma matrices from each step in the optimization algorithm. 
-    beta_steps_all: Nan or list whose elements are array-like of shape (n_covariates x n_comps). Will be non-NaN after fitting the model with argument trace_sol=True. The list contains the gamma matrices from each step in the optimization algorithm. 
+    gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
     __fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
@@ -47,11 +47,12 @@ class funcoin:
         self.residual_std_train = float('NaN')
         self.betas_bootstrap = float('NaN')
         self.beta_CI = float('NaN')
-        self.logZ_training = float('NaN')
+        self.u_training = float('NaN')
         self.decomp_settings = dict()
-        self.gamma_steps_all = float('NaN')
-        self.beta_steps_all = float('NaN')
+        self.gamma_steps_all = []
+        self.beta_steps_all = []
         self.__fitted = False
+        print('HEYHEYHEY')
 
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
@@ -91,14 +92,14 @@ class funcoin:
         trace_sol: Boolean. Whether or not to keep all intermediate steps in the optimization of gamma and beta. The steps are stored in lists in instance variables self.gamma_steps_all and self.beta_steps_all.
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
-        overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and logZ_training.
+        overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
 
         Returns:
         --------
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
         self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.logZ_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
         self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
 
         Raises:
@@ -140,11 +141,11 @@ class funcoin:
         self.gamma = gamma_mat
         self.beta = beta_mat
 
-        logZ_vals_training = self.transform_timeseries(Y_dat)
-        self.logZ_training = logZ_vals_training
+        u_vals_training = self.transform_timeseries(Y_dat)
+        self.u_training = u_vals_training
 
         model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(logZ_vals_training-model_pred_training, axis=0, ddof = 1)
+        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
 
         Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
         Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
@@ -163,8 +164,8 @@ class funcoin:
 
         Returns:
         --------
-        logZ_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
-                   using the projection log(Z) = log(gamma_j.T@Sigma_i@gamma_j)
+        u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
+                   using the projection u_i = log(gamma_j.T@Sigma_i@gamma_j)
                    for each subject i.
         """
 
@@ -174,9 +175,9 @@ class funcoin:
 
         cov_matrices = fca.calc_covmatrix_listtolist(Y_dat)
 
-        logZ_vals = np.log(np.array([np.diag(self.gamma.T@cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
+        u_vals = np.log(np.array([np.diag(self.gamma.T@cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
 
-        return logZ_vals
+        return u_vals
 
     def transform_FC(self, corr_list):
         """Takes the time series data and transforms it with the gamma matrix from self.
@@ -189,27 +190,27 @@ class funcoin:
 
         Returns:
         --------
-        logZ_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
-                   using the projection log(Z) = log(gamma_j.T@Sigma_i@gamma_j)
+        u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
+                   using the projection u_i = log(gamma_j.T@Sigma_i@gamma_j)
                    for each subject i.
         """
 
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
-        logZ_vals = np.log(np.array([np.diag(self.gamma.T@corr_list[i]@self.gamma) for i in range(len(corr_list))]))
+        u_vals = np.log(np.array([np.diag(self.gamma.T@corr_list[i]@self.gamma) for i in range(len(corr_list))]))
 
-        return logZ_vals
+        return u_vals
     
-    def calc_Zscores(self, X_dat, logZ_vals):
+    def calc_Zscores(self, X_dat, u_vals):
         """Takes transformed data (after projections) and calculates Z-scores based on model prediction and standard deviations from the training data.
            Variance is assumed to be homogenous within each projection.
 
         Parameters:
         ----------- 
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
-        logZ_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
-            using the projection log(Z) = log(gamma_j.T@Sigma_i@gamma_j)
+        u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
+            using the projection u_i = log(gamma_j.T@Sigma_i@gamma_j)
             for each subject i.
 
         Returns:
@@ -226,7 +227,7 @@ class funcoin:
             raise Exception('Could not calculate Z-scores, because the model has not been fitted. Please train the model before calculating Z-scores.')
         
         model_pred = X_dat@self.beta
-        Z_scores = np.array([(logZ_vals[i,:] - model_pred[i,:])/self.residual_std_train for i in range(logZ_vals.shape[0])])
+        Z_scores = np.array([(u_vals[i,:] - model_pred[i,:])/self.residual_std_train for i in range(u_vals.shape[0])])
         print('WARNING: Calculated Z-scores based on the provided data by using the standard deviation from the training data. This is based on the assumption of homogenous variance of the residuals of the transformed training data.')
 
         return Z_scores
@@ -397,9 +398,9 @@ class funcoin:
         if not isfit:
             raise Exception('Could not add projections, because the FUNCOIN model has not been fitted. Please run the decompose method instead.')
 
-        logZ_test = self.transform_timeseries(Y_dat)
+        u_test = self.transform_timeseries(Y_dat)
 
-        test = np.all(self.logZ_training==logZ_test)
+        test = np.all(self.u_training==u_test)
 
         if not test:
             raise Exception('Did not add any projection directions. The data provided do not match the data used to fit the model in the first place.')
@@ -448,13 +449,13 @@ class funcoin:
         dfd_vals = [self.__deviation_from_diag(i, Y_dat, weighted_io, dfd_aritm, logtrick_io) for i in range(n_dir)]
         return dfd_vals
     
-    def score(self, X_dat, logZ_true = None, Y_dat = None, score_type = 'r2_score', **kwargs):
+    def score(self, X_dat, u_true = None, Y_dat = None, score_type = 'r2_score', **kwargs):
         """ Calculate score functions for each gamma projection to asses goodness of fit of the log-linear model.
         
         Parameters:
         -----------
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
-        logZ_true: Array-like of shape (n_subjects, n_comps). 
+        u_true: Array-like of shape (n_subjects, n_comps). 
         Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         score_type: String specifying a type of scoring, e.g. 'r2_score' or 'mean_absolute_error. Any regression metric method from the sklearn.metrics submodule can be used.
                     Full list of possible arguments as of sklearn v1.4: ['explained_variance_score', 'max_error', 'mean_absolute_error', 'mean_squared_error', 'root_mean_squared_error', 
@@ -481,11 +482,11 @@ class funcoin:
         if (self.gamma is False) or (self.beta is False):
             raise Exception('Could not calculate score, because the Gamma and/or Beta matrix is not defined. Please fit the model or define these manually.')
 
-        if (logZ_true is None) and (Y_dat is None):
-            raise Exception('Could not calculate score, no true data values were given. Please provide transformed data (log(Z) values) or Y_dat (list of time series data).')
+        if (u_true is None) and (Y_dat is None):
+            raise Exception('Could not calculate score, no true data values were given. Please provide transformed data (u values) or Y_dat (list of time series data).')
 
-        if (logZ_true is not None) and (Y_dat is not None):
-            warnings.warn('Warning. Both logZ values and time series data were provided. Calculating score based on the provided log(Z) values.')
+        if (u_true is not None) and (Y_dat is not None):
+            warnings.warn('Warning. Both u values and time series data were provided. Calculating score based on the provided u values.')
 
         if 'multioutput' in kwargs.keys():
             del kwargs['multioutput']
@@ -493,13 +494,13 @@ class funcoin:
         if score_type == 'r2_score':
             'Providing r2_score, which is the default of this function.'
 
-        logZ_pred = X_dat@self.beta
+        u_pred = X_dat@self.beta
 
-        if logZ_true is None:
-            logZ_true = self.transform_timeseries(Y_dat)
+        if u_true is None:
+            u_true = self.transform_timeseries(Y_dat)
 
 
-        scores = scorefunc(logZ_true, logZ_pred, multioutput='raw_values', **kwargs)
+        scores = scorefunc(u_true, u_pred, multioutput='raw_values', **kwargs)
 
         return scores
 
@@ -740,6 +741,7 @@ class funcoin:
             if trace_sol:
                 beta_steps_all.append(beta_steps)
                 gamma_steps_all.append(gamma_steps)
+                
             llh_steps_all.append(llh_steps)
             llh_steps_split_all.append(llh_steps_split)
             llh_steps_beta_optim_all.append(llh_steps_beta_optim)
@@ -752,8 +754,12 @@ class funcoin:
         if trace_sol:
             best_gamma_steps = gamma_steps_all[best_llh_ind]
             best_beta_steps = beta_steps_all[best_llh_ind]
-            self.gamma_steps_all = gamma_steps_all
-            self.beta_steps_all = beta_steps_all
+            gsa = self.gamma_steps_all
+            bsa = self.beta_steps_all
+            gsa.append(gamma_steps_all)
+            bsa.append(beta_steps_all)
+            self.gamma_steps_all = gsa
+            self.beta_steps_all = bsa
         else:
             best_gamma_steps = float('NaN')
             best_beta_steps = float('NaN')
