@@ -1,4 +1,4 @@
-# Funcional Connectivity Integrative Normative Modelling (FUNCOIN)
+# Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 
 ## Dependencies:
 The funcoin module requires the following python modules:
@@ -8,9 +8,9 @@ The funcoin module requires the following python modules:
 * matplotlib (for the tutorial)
 
 ## Installation
-* Install the latest stable build by using the following command 
+* Install the latest stable build by using the following command  
 ```pip install funco-in```
-* Install the lates development version by using the following command 
+* Install the lates development version by using the following command  
 ```pip install git+https://github.com/kobbersmed/funcoin```
 
 ## Links
