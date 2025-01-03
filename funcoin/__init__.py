@@ -4,6 +4,8 @@ normcap
 An python package for doing Functiontal Connectivity Integrative Normative Modelling.
 """
 
+from .funcoin import funcoin
+
 from pkg_resources import DistributionNotFound, get_distribution
 
 __author__ = 'Janus R. L. Kobbersmed'
