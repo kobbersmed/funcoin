@@ -14,7 +14,7 @@ from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
 
-class funcoin:
+class Funcoin:
     """
     Class for Functional Connectivity Integrative Normative Modelling (FUNCOIN).
 

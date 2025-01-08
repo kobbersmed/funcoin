@@ -2,16 +2,20 @@
 
 ## Dependencies:
 The funcoin module requires the following python modules:
-* NumPy
+* numpy
 * scipy
 * scikit-learn (some model evaluation metrics are only available in version 1.4 or higher, but capr can run with older versions)
 * matplotlib (for the tutorial)
 
 ## Installation
 * Install the latest stable build by using the following command  
-```pip install funco-in```
+```
+pip install funco-in
+```
 * Install the lates development version by using the following command  
-```pip install git+https://github.com/kobbersmed/funcoin```
+```
+pip install git+https://github.com/kobbersmed/funcoin
+```
 
 ## Links
 * Source code repository: https://github.com/kobbersmed/funcoin
