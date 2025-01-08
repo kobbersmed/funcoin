@@ -10,7 +10,7 @@ The funcoin module requires the following python modules:
 ## Installation
 * Install the latest stable build by using the following command  
 ```
-pip install funco-in
+pip install fcin
 ```
 * Install the lates development version by using the following command  
 ```
