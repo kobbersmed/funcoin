@@ -3,8 +3,8 @@
 
 """
 Functional Connectivity Integrative Normative Modelling (FUNCOIN)
-@Author and maintainer of Python module: Janus Rønn Lind Kobbersmed, janus@cfin.au.dk or januslind@gmail.com
-@Base on the Covariate-Assisted Principal regression method: Zhao, Y. et al. (2021). 'Covariate Assisted Principal regression for covariance matrix outcomes', Biostatistics, 22(3), pp. 629-45.  
+@Author and maintainer of Python package: Janus Rønn Lind Kobbersmed, janus@cfin.au.dk or januslind@gmail.com
+@Based on the Covariate-Assisted Principal regression method: Zhao, Y. et al. (2021). 'Covariate Assisted Principal regression for covariance matrix outcomes', Biostatistics, 22(3), pp. 629-45.  
 """ 
 
 import numpy as np
@@ -27,7 +27,7 @@ class Funcoin:
     residual_std_train: NaN or array of length [no. of components]. Element j is the standard deviation of the residuals for the transformed values of projection j. 
     beta_bootstrap: Nan or list of length [number of bootstrap samples] containing beta matrices from the bootstrapping procedure.
                          The attribute is defined when running the method .decompose_bootstrap().
-    gamma_CI, beta_CI: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for gamma or beta matrices.
+    gamma_CI, beta_CI_bootstrap: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for gamma or beta matrices.
                         These are determined from the bootstrapping procedure.
     u_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values (u values) of the data the model was trained on.  
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
@@ -46,7 +46,7 @@ class Funcoin:
         self.dfd_values_training = float('NaN')
         self.residual_std_train = float('NaN')
         self.betas_bootstrap = float('NaN')
-        self.beta_CI = float('NaN')
+        self.beta_CI_bootstrap = float('NaN')
         self.u_training = float('NaN')
         self.decomp_settings = dict()
         self.gamma_steps_all = []
@@ -201,6 +201,22 @@ class Funcoin:
 
         return u_vals
     
+    def predict(self, X_dat):
+        """Takes the feature matrix, X_dat, and predicts u values from the fitted model (i.e. using the coefficients in self.beta)
+
+        Parameters:
+        ----------- 
+        X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (intercept).
+
+        Returns:
+        --------
+        u_pred: Predicted u values.
+        """
+
+        u_pred = X_dat@self.beta
+
+        return u_pred
+
     def calc_Zscores(self, X_dat, u_vals):
         """Takes transformed data (after projections) and calculates Z-scores based on model prediction and standard deviations from the training data.
            Variance is assumed to be homogenous within each projection.
@@ -225,8 +241,8 @@ class Funcoin:
         if not isfit:
             raise Exception('Could not calculate Z-scores, because the model has not been fitted. Please train the model before calculating Z-scores.')
         
-        model_pred = X_dat@self.beta
-        Z_scores = np.array([(u_vals[i,:] - model_pred[i,:])/self.residual_std_train for i in range(u_vals.shape[0])])
+        u_pred = self.predict(X_dat)
+        Z_scores = np.array([(u_vals[i,:] - u_pred[i,:])/self.residual_std_train for i in range(u_vals.shape[0])])
         print('WARNING: Calculated Z-scores based on the provided data by using the standard deviation from the training data. This is based on the assumption of homogenous variance of the residuals of the transformed training data.')
 
         return Z_scores
@@ -261,7 +277,7 @@ class Funcoin:
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
         self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
+        self.beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
         self.CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
         
         Raises:
@@ -297,7 +313,7 @@ class Funcoin:
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
         self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
+        self.beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
         self.CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
         
         Raises:
@@ -368,7 +384,7 @@ class Funcoin:
 
 
         self.betas_bootstrap = beta_mats_bootstrap
-        self.beta_CI = beta_mat_CI
+        self.beta_CI_bootstrap = beta_mat_CI
         self.CI_lvl = CI_lvl
 
     def add_projections(self, n_add, Y_dat, X_dat):
@@ -493,7 +509,7 @@ class Funcoin:
         if score_type == 'r2_score':
             'Providing r2_score, which is the default of this function.'
 
-        u_pred = X_dat@self.beta
+        u_pred = self.predict(X_dat)
 
         if u_true is None:
             u_true = self.transform_timeseries(Y_dat)

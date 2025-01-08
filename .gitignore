@@ -23,3 +23,5 @@ MANIFEST
 
 # Jupyter Notebook
 notebooks/.ipynb_checkpoints
+
+.DS_Store
