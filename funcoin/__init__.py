@@ -1,7 +1,7 @@
 """
-normcap
+funcoin
 
-An python package for doing Functiontal Connectivity Integrative Normative Modelling.
+A python package for doing Functiontal Connectivity Integrative Normative Modelling.
 """
 
 from .funcoin import Funcoin

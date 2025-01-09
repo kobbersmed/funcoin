@@ -20,6 +20,7 @@ git pull
 ```
 git add setup.cfg
 git commit -m "New version vX.Y.Z"
+git push
 ```
 
 5. Go to the GitHub website and create a release. Create a tag called vX.Y.Z and call the release vX.Y.Z. Add a description of the changes made to the repo since the last release.
