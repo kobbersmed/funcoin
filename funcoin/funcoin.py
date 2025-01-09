@@ -10,6 +10,7 @@ Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 import numpy as np
 import warnings
 from scipy.linalg import fractional_matrix_power
+from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
@@ -27,8 +28,10 @@ class Funcoin:
     residual_std_train: NaN or array of length [no. of components]. Element j is the standard deviation of the residuals for the transformed values of projection j. 
     beta_bootstrap: Nan or list of length [number of bootstrap samples] containing beta matrices from the bootstrapping procedure.
                          The attribute is defined when running the method .decompose_bootstrap().
-    gamma_CI, beta_CI_bootstrap: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for gamma or beta matrices.
+    beta_CI_bootstrap: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals of the specified confidence level for the beta matrix.
                         These are determined from the bootstrapping procedure.
+    beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
     u_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values (u values) of the data the model was trained on.  
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
@@ -47,6 +50,7 @@ class Funcoin:
         self.residual_std_train = float('NaN')
         self.betas_bootstrap = float('NaN')
         self.beta_CI_bootstrap = float('NaN')
+        self.beta_CI95_parametric = float('NaN')
         self.u_training = float('NaN')
         self.decomp_settings = dict()
         self.gamma_steps_all = []
@@ -100,7 +104,14 @@ class Funcoin:
         self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
         self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
         self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-
+        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+                        Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+                        Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+                        
         Raises:
         -------
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
@@ -153,7 +164,15 @@ class Funcoin:
 
         dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
         self.dfd_values_training = dfd_values_training
-    
+
+        if betaLinReg:
+            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
+            self.beta_CI95_parametric = beta_CI95_parametric
+            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
+            self.beta_pvals = beta_pvals
+            self.beta_tvals = beta_tvals
+
+
     def transform_timeseries(self, Y_dat):
         """Takes the time series data and transforms it with the gamma matrix from self.
 
@@ -313,8 +332,8 @@ class Funcoin:
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
         self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
-        self.CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
+        self.beta_CI_bootstrap: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta matrix determined by bootstrapping.
+        self.CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
         
         Raises:
         -------
@@ -385,7 +404,7 @@ class Funcoin:
 
         self.betas_bootstrap = beta_mats_bootstrap
         self.beta_CI_bootstrap = beta_mat_CI
-        self.CI_lvl = CI_lvl
+        self.CI_lvl_bootstrap = CI_lvl
 
     def add_projections(self, n_add, Y_dat, X_dat):
         """Identifies projection direction in addition to the projections already found by fitting the FUNCOIN instance.
@@ -451,7 +470,7 @@ class Funcoin:
         
         Raises:
         -------
-        Exception: If gamma matrix is not fitted nor predefined.1
+        Exception: If gamma matrix is not fitted nor predefined.
         """
 
 
@@ -519,6 +538,99 @@ class Funcoin:
 
         return scores
 
+    def CI_beta_parametric(self, X_dat, CI_lvl=0.05):
+        """
+        Computes the parametric confidence intervals of the beta coefficients. Relies on the assumption of homogenous and normally distributed residuals. 
+        This is automatically called with fitting the model (i.e. running decomposition) with betaLinReg set to true, and the 95%-CI is stored in self.beta_CI95_parametric.
+
+        Parameters:
+        -----------
+        X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (intercept).
+        CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
+
+        Returns: 
+        --------
+        beta_CI_parametric: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta determined parametrically.
+
+        Raises:
+        -------
+        Exception: If the model has not been fitted.
+        Exception: If the model has been fitted without the betaLinReg set to True. 
+        """
+
+        fit_stat = self.isfitted()
+        if not fit_stat:
+            raise Exception('Cannot calculate confidence interval, because the model has not been fitted. Run the decomposition method first.')
+        else:
+            if not self.decomp_settings['betaLinReg']:
+                raise Exception('Cannot compute parametric confidence intervals. Only valid when model is fitted with betaLinReg set to True.')
+
+        s2 = self.__sample_s2_coefficients(X_dat=X_dat)
+        Q_inv = self.__calc_Qinv(X_dat)
+
+        CI_low_s2 = np.zeros_like(self.beta)
+        CI_high_s2 = np.zeros_like(self.beta)
+
+        df = X_dat.shape[0]-X_dat.shape[1]
+
+        for i in range(CI_low_s2.shape[1]): 
+            SE_beta = np.sqrt(s2[i]*np.diag(Q_inv))
+            CI_lim = 1-CI_lvl/2
+            CI_low_s2[:,i] = self.beta[:,i] - t.ppf(CI_lim, df) * SE_beta
+            CI_high_s2[:,i] = self.beta[:,i] + t.ppf(CI_lim, df)  * SE_beta
+
+        beta_CI_parametric = [CI_low_s2, CI_high_s2]
+
+        return beta_CI_parametric
+
+    def ttest_beta(self, X_dat, h0_beta = False):
+        """
+        Performs two-tailed t-test of the beta coefficients. Relies on the same assumptions as linear regression and parametric confidence intervals. 
+        This is automatically called with fitting the model (i.e. running decomposition) with betaLinReg set to true and the p-values are stored in self.beta_pvals.
+
+        Parameters:
+        -----------
+        X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (intercept).
+        h0_beta: False or array-like of shape (q,n_dir), i.e. same size as self.beta. Contains the hypothesized values to test for, i.e. testing if the fitted beta is significantly different from the value in h0_beta. Default is False, in which case the beta=0 hypotheses are tested for all elements of fitted beta.   
+
+        Returns: 
+        --------
+        beta_pvals: Array-like of shape (q,n_dir). Contains the p-values of each beta coefficient from the fit. 
+        beta_tvals: Array-like of shape (q,n_dir). Contains the t-values of the t-test of each beta coefficient from the fit. 
+        
+        Raises:
+        -------
+        Exception: If the model has not been fitted.
+        Exception: If the model has been fitted without the betaLinReg set to True. 
+        """
+
+        fit_stat = self.isfitted()
+        if not fit_stat:
+            raise Exception('Cannot parametrically determine p-values, because the model has not been fitted. Run the decomposition method first.')
+        else:
+            if not self.decomp_settings['betaLinReg']:
+                raise Exception('Cannot parametrically determine parametric confidence intervals. Only valid when model is fitted with betaLinReg set to True.')
+
+
+        if h0_beta is False:
+            h0_beta = np.zeros_like(self.beta)
+
+        s2 = self.__sample_s2_coefficients(X_dat=X_dat)
+        Q_inv = self.__calc_Qinv(X_dat)
+        
+
+        beta_tvals = np.zeros_like(self.beta)
+        for i in range(beta_tvals.shape[1]): 
+            SE_beta = np.sqrt(s2[i]*np.diag(Q_inv))
+            beta_tvals[:,i] = (self.beta[:,i]-h0_beta[:,i])/SE_beta
+
+        df = X_dat.shape[0]-X_dat.shape[1]
+
+        beta_pvals = (1 - t.cdf(np.abs(beta_tvals), df=df))*2
+
+        return beta_pvals, beta_tvals
+
+
     def simulate_data(self, X_dat, n_T, seed = None):
         """ Simulate data based on Gamma and Beta matrices(predefined or fitted) and X matrix (feature matrix).
         
@@ -568,7 +680,7 @@ class Funcoin:
         Y_sim = [rng.multivariate_normal(mean_sim, Sigma_list[i], n_T[i]) for i in range(n_subj)]
 
         return Y_sim
-    
+
     def isfitted(self):
         """
         When called, checks if the model has been fitted and returns True of False
@@ -947,3 +1059,20 @@ class Funcoin:
             Si_list_tilde.extend(Si_list_tilde_chunk)
 
         return Si_list_tilde
+
+    def __sample_s2_coefficients(self, X_dat):
+        #Only called after decomposing with betaLinReg=True
+
+        u_pred = self.predict(X_dat=X_dat)
+        u_residuals = self.u_training - u_pred
+        n_dir = u_residuals.shape[1]
+        s2 = np.zeros(n_dir)
+        for i in range(n_dir):
+            s2[i] = np.dot(u_residuals[:,i],u_residuals[:,i])/(X_dat.shape[0]-X_dat.shape[1])
+
+        return s2
+    
+    def __calc_Qinv(self, X_dat):
+        Q_mat = X_dat.T@X_dat
+        Q_inv = np.linalg.inv(Q_mat)
+        return Q_inv

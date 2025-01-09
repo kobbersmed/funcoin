@@ -63,6 +63,9 @@ def test_matrixsym(mat):
     return sym_stat
 
 def dfd_func(matA):
+    """
+    Computes the "deviation from diagonality meassure.
+    """
 
     test_def = test_matrixdef(matA)
 

@@ -6,6 +6,7 @@ The funcoin module requires the following python modules:
 * scipy
 * scikit-learn (some model evaluation metrics are only available in version 1.4 or higher, but capr can run with older versions)
 * matplotlib (for the tutorial)
+* notebook (for the tutorial)
 
 ## Installation
 * Install the latest stable build by using the following command  
