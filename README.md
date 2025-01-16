@@ -23,7 +23,7 @@ pip install git+https://github.com/kobbersmed/funcoin
 
 ## References
 * The python module is released with the following paper, which we ask you to cite: 
-Kobbersmed, J.R.L., Gohil, C., Marquand, A.F. and Vidaurre, D., _Normative modelling of brain functional connectivity: a network approach_.
+Kobbersmed, J.R.L., Gohil, C., Marquand, A.F. and Vidaurre, D., _Normative modelling of brain functional connectivity: a network approach_. [https://www.biorxiv.org/content/10.1101/2025.01.13.632752v1]
 * Please also cite the original paper proposing the regression method: 
 Zhao, Y. et al. (2021). "Covariate Assisted Principal regression for covariance matrix outcomes", _Biostatistics, 22_(3), pp. 629-45
 
