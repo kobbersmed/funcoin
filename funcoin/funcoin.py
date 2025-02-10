@@ -82,7 +82,7 @@ class Funcoin:
         
         Parameters:
         -----------
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series. 
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series. 
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
                     if the problem is ill-posed, e.g. if no common components can be found or the common directions of variance have already been identified.
@@ -178,7 +178,7 @@ class Funcoin:
 
         Parameters:
         ----------- 
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
 
         Returns:
         --------
@@ -274,7 +274,7 @@ class Funcoin:
         
         Parameters:
         -----------
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
         n_samples: Integer >0. Number of bootstrap samples.
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -316,7 +316,7 @@ class Funcoin:
         
         Parameters:
         -----------
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
         n_samples: Integer >0. Number of bootstrap samples.
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -412,7 +412,7 @@ class Funcoin:
         Parameters:
         -----------
         n_add: Integer >0. Integer specifying the maximal number of more direction to be identified from the provided training data.
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
        
         Returns:
@@ -459,7 +459,7 @@ class Funcoin:
         Parameters:
         -----------
         proj_mat: Array of size (n_parc x n_proj) whose columns are the found projection vectors
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.List of length n_subects consisting of arrays of shape (n_timepoints x n_parcels) with the data used in the fitting process
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.List of length n_subects consisting of arrays of shape (n_timepoints x n_parcels) with the data used in the fitting process
         weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
         dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
         logtrick_io: Boolean of 0/1. When computing the harmonic mean, a log-transformation is temporarily applied to avoid overflow. Recommended, but can be disabled to test the difference. Default value 1.
@@ -490,7 +490,7 @@ class Funcoin:
         -----------
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
         u_true: Array-like of shape (n_subjects, n_comps). 
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         score_type: String specifying a type of scoring, e.g. 'r2_score' or 'mean_absolute_error. Any regression metric method from the sklearn.metrics submodule can be used.
                     Full list of possible arguments as of sklearn v1.4: ['explained_variance_score', 'max_error', 'mean_absolute_error', 'mean_squared_error', 'root_mean_squared_error', 
                                                      'mean_squared_log_error', 'root_mean_squared_log_error', 'median_absolute_error', 'r2_score', 'mean_poisson_deviance', 
@@ -644,7 +644,7 @@ class Funcoin:
 
         Returns:
         --------
-        Y_sim: List of length [number of subjects] contatining time series data for each "subject". Each element of the list is array-like of shape (n_T[i], q).
+        Y_sim: List of length [number of subjects] containing time series data for each "subject". Each element of the list is array-like of shape (n_T[i], q).
         """""
 
         if (self.gamma is False) or (self.beta is False):
@@ -973,7 +973,7 @@ class Funcoin:
         Parameters:
         -----------
         gamma_dir: The direction up to which the dfd value is calculated. 
-        Y_dat: List of length [number of subjects] contatining time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
         dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
         logtrick_io: Boolean of 0/1. When computing the harmonic mean, a log-transformation is temporarily applied to avoid overflow. Recommended, but can be disabled to test the difference. Default value 1.
