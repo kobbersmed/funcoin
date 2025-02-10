@@ -42,5 +42,5 @@ python -m build
 9. Upload to PyPI.
 
 ```
-twine uplaod dist/*
+twine upload dist/*
 ```
