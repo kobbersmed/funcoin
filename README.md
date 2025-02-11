@@ -4,7 +4,7 @@
 The funcoin module requires the following python modules:
 * numpy
 * scipy
-* scikit-learn (some model evaluation metrics are only available in version 1.4 or higher, but capr can run with older versions)
+* scikit-learn (some model evaluation metrics are only available in version 1.4 or higher, but funcoin can run with older versions)
 * matplotlib (for the tutorial)
 * notebook (for the tutorial)
 
@@ -13,7 +13,7 @@ The funcoin module requires the following python modules:
 ```
 pip install fcin
 ```
-* Install the lates development version by using the following command  
+* Install the latest development version by using the following command  
 ```
 pip install git+https://github.com/kobbersmed/funcoin
 ```
@@ -29,4 +29,4 @@ Kobbersmed, J.R.L., Gohil, C., Marquand, A.F. and Vidaurre, D., _One-shot normat
 Zhao, Y. et al. (2021). "Covariate Assisted Principal regression for covariance matrix outcomes", _Biostatistics, 22_(3), pp. 629-45. [https://doi.org/10.1093/biostatistics/kxz057]
 
 ## Contact
-* Author and maintainer of this Python module: Janus Rønn Lind Kobbersmed, mail: janus@cfin.au.dk or januslind@gmail.com
+* Author and maintainer of this Python package: Janus Rønn Lind Kobbersmed, mail: janus@cfin.au.dk or januslind@gmail.com
