@@ -144,7 +144,7 @@ class Funcoin:
         if overwrite_fit and np.ndim(self.gamma)>0:
             warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
 
-        gamma_mat, beta_mat = self.__decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = None, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
+        gamma_mat, beta_mat = self.__decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
 
         self.__fitted = True
 
