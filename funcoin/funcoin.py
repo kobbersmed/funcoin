@@ -1023,20 +1023,13 @@ class Funcoin:
         
         del Y_dat
 
-        U_mats = []
-        D_mats = []
-        V_mats = []
-        Dtilde_mats = []
+        Ytilde_mats = []
         for i in range(len(Yhat_kth_list)):
             U_mat, D_mat, V_mat = np.linalg.svd(Yhat_kth_list[i], full_matrices=False)
-            U_mats.append(U_mat)
-            D_mats.append(D_mat)
-            V_mats.append(V_mat)
-            diag_el = D_mats[i][:(p_model-num_gammas)]
+            diag_el = D_mat[:(p_model-num_gammas)]
             diag_el = np.append(diag_el, np.sqrt(np.exp(beta_mat[0,:])))
-            Dtilde_mats.append(np.diag(diag_el))
-        del Yhat_kth_list
-        Ytilde_mats = [U_mats[i]@Dtilde_mats[i]@V_mats[i] for i in range(len(U_mats))]
+            Dtilde_mat = np.diag(diag_el)
+            Ytilde_mats.append(U_mat@Dtilde_mat@V_mat)
 
         return Ytilde_mats
 
