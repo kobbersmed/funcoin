@@ -115,6 +115,7 @@ class Funcoin:
         Raises:
         -------
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
+        Exception: Raises exception if no common components (gammas) can be identified.
         Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
@@ -172,9 +173,111 @@ class Funcoin:
             self.beta_pvals = beta_pvals
             self.beta_tvals = beta_tvals
 
+    def decompose_FC(self, FC_list, X_dat, max_comps=2, Ti_list = [], gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+        """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, and covariate matrix, X_dat. 
+        
+        Parameters:
+        -----------
+        FC_list: List of length [number of subjects] containing covariance/correlation matrix for each subject. Each element of the list should be array-like of shape (p, p), with p the number of regions. 
+        X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
+        max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
+                    if the problem is ill-posed, e.g. if no common components can be found or the common directions of variance have already been identified.
+        Ti_list: Optional. List of length [number of subjects] containing the number of time points in the time series data for each subject. If provided and elements are not equal, this allows for weighted average deviation from diagonality values.
+        gamma_init: False or array of length n_regions. If not False, the optimization algorithm uses the array as initial condition for gamma. In the optimisation algorithm, beta is determined from the current gamma, 
+                    without utilising an initial beta matrix. Default value False.
+        rand_init: Boolean. If True, the decomposition will use random initial gamma values. Default value True.
+        n_init: Integer. Default value 20. 
+        max_iter: Integer>0. Maximal number of iterations when determining gamma (and beta, if betaLinReg is False). Default value 1000.
+        tol: Float >0. Maximal tolerance when optimizing for gamma (and beta). If an iteration yields an absolute change smaller than this value in all elements of gamma and beta, the optimisation stops. Default 1e-4.
+        trace_sol: Boolean. Whether or not to keep all intermediate steps in the optimization of gamma and beta. The steps are stored in lists in instance variables self.gamma_steps_all and self.beta_steps_all.
+        seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
+        betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
+        overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+
+        Returns:
+        --------
+        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+                        Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+                        Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+                        
+        Raises:
+        -------
+        Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
+        Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
+        Exception: Raises exception if no common components (gammas) can be identified.
+        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
+                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
+        """
+
+        if len(Ti_list)>0:
+            if len(Ti_list)!=len(FC_list):
+                raise Exception('Length of list of FC matrices and list of number of time points do not match')
+            else:
+                Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])
+
+
+        self.decomp_settings['max_comps'] = max_comps
+        self.decomp_settings['gamma_init'] = gamma_init
+        self.decomp_settings['rand_init'] = rand_init
+        self.decomp_settings['n_init'] = n_init
+        self.decomp_settings['max_iter'] = max_iter
+        self.decomp_settings['tol'] = tol
+        self.decomp_settings['trace_sol'] = trace_sol
+        self.decomp_settings['seed_initial'] = seed_initial
+        self.decomp_settings['betaLinReg'] = betaLinReg
+
+
+        isfit = self.isfitted()
+
+        try:
+            add_to_fit = kwargs['add_to_fit']
+        except:
+            add_to_fit = False
+
+        if isfit and not (overwrite_fit or add_to_fit):
+            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
+        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
+            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
+        if overwrite_fit and np.ndim(self.gamma)>0:
+            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+
+        gamma_mat, beta_mat = self.__decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True)
+
+        self.__fitted = True
+
+        self.gamma = gamma_mat
+        self.beta = beta_mat
+
+        u_vals_training = self.transform_FC(FC_list)
+        self.u_training = u_vals_training
+
+        model_pred_training = X_dat@beta_mat
+        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
+
+        w_io = not Ti_equal
+
+        dfd_values_training = self.calc_dfd_values_FC(FC_list, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        self.dfd_values_training = dfd_values_training
+
+        if betaLinReg:
+            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
+            self.beta_CI95_parametric = beta_CI95_parametric
+            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
+            self.beta_pvals = beta_pvals
+            self.beta_tvals = beta_tvals
+
 
     def transform_timeseries(self, Y_dat):
-        """Takes the time series data and transforms it with the gamma matrix from self.
+        """Takes a list of time series data and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
@@ -198,13 +301,12 @@ class Funcoin:
         return u_vals
 
     def transform_FC(self, corr_list):
-        """Takes the time series data and transforms it with the gamma matrix from self.
+        """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
         corr_list: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
-        should be Pearson full correlation or covariance matrices with n degrees (population covariance matrix). 
-        of freedom. 
+        should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices). 
 
         Returns:
         --------
@@ -455,10 +557,10 @@ class Funcoin:
     def calc_dfd_values(self, Y_dat, weighted_io=1, dfd_aritm = 0, logtrick_io = 1):
         """
         Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
-        
+        Can also be called as calc_dfd_values_ts (to distinguish from calc_dfd_values_FC).
+
         Parameters:
         -----------
-        proj_mat: Array of size (n_parc x n_proj) whose columns are the found projection vectors
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.List of length n_subects consisting of arrays of shape (n_timepoints x n_parcels) with the data used in the fitting process
         weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
         dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
@@ -483,6 +585,61 @@ class Funcoin:
         dfd_vals = [self.__deviation_from_diag(i, Y_dat, weighted_io, dfd_aritm, logtrick_io) for i in range(n_dir)]
         return dfd_vals
     
+    def calc_dfd_values_ts(self, Y_dat, weighted_io=1, dfd_aritm = 0, logtrick_io = 1):
+        """
+        Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
+        
+        Parameters:
+        -----------
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.List of length n_subects consisting of arrays of shape (n_timepoints x n_parcels) with the data used in the fitting process
+        weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
+        dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
+        logtrick_io: Boolean of 0/1. When computing the harmonic mean, a log-transformation is temporarily applied to avoid overflow. Recommended, but can be disabled to test the difference. Default value 1.
+    
+        Returns: 
+        --------
+        dfd_proj: A number to measure the deviation from diagonality of the projected data matrices. 
+        
+        Raises:
+        -------
+        Exception: If gamma matrix is not fitted nor predefined.
+        """
+
+
+        dfd_vals = self.calc_dfd_values(self, Y_dat, weighted_io, dfd_aritm, logtrick_io)
+        return dfd_vals
+
+    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1):
+        """
+        Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
+        
+        Parameters:
+        -----------
+        FC_list: List of length [number of subjects] containing covariance/correlation matrix for each subject. Each element of the list should be array-like of shape (p, p), with p the number of regions.
+        weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
+        dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
+        logtrick_io: Boolean of 0/1. When computing the harmonic mean, a log-transformation is temporarily applied to avoid overflow. Recommended, but can be disabled to test the difference. Default value 1.
+    
+        Returns: 
+        --------
+        dfd_proj: A number to measure the deviation from diagonality of the projected data matrices. 
+        
+        Raises:
+        -------
+        Exception: If gamma matrix is not fitted nor predefined.
+        """
+
+
+        if self.gamma is False:
+            raise Exception('DfD values could not be computed, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+
+   
+
+        n_dir = self.gamma.shape[1]
+        dfd_vals = [self.__deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True) for i in range(n_dir)]
+        return dfd_vals
+
+
     def score(self, X_dat, u_true = None, Y_dat = None, score_type = 'r2_score', **kwargs):
         """ Calculate score functions for each gamma projection to asses goodness of fit of the log-linear model.
         
@@ -689,7 +846,7 @@ class Funcoin:
 
     #Private methods
 
-    def __decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False):
+    def __decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list_input=[]):
 
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
@@ -707,20 +864,22 @@ class Funcoin:
         best_beta_steps_all = []
         best_gamma_steps_all = []
 
-        
-        Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
-        Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-        Si_list = fca.make_Si_list(Y_dat)
+        if FC_mode == False:
+            Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
+            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            Si_list = fca.make_Si_list(Y_dat)
+        else:
+            Ti_list = Ti_list_input
+            Si_list = Y_dat
 
         for i in range(n_dir_init,max_comps):
+            print(i)
             # print(f'Direction {i}. n_covars = {n_covars}. n_subj = {n_subj}. n_parc = {n_parc}')
             if i == 0:
                 try:
                     _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
                 except:
-                    warnings.warn('Exception occured. Did not find any principal directions using CAP algorithm.')
-                    beta_mat_new = float('NaN')
-                    gamma_mat_new = float('NaN')
+                    raise Exception('Exception occured. Did not find any principal directions using CAP algorithm.')
                 else:
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
@@ -729,7 +888,7 @@ class Funcoin:
                 if seed:
                     seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
                 try:
-                    beta_mat_new, gamma_mat_new, best_llh, best_beta_steps, best_gamma_steps = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
+                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
@@ -893,14 +1052,18 @@ class Funcoin:
 
         return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
 
-    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed = None, betaLinReg=False):
+    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed = None, betaLinReg=False, FC_mode = False):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
 
-        Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
 
-        Si_list_tilde = self.__make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+        if FC_mode == False:
+            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+
+            Si_list_tilde = self.__make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+        else:
+            Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat)
 
         testSitilde = len(Si_list_tilde) == len(Y_dat)
         if not testSitilde:
@@ -966,7 +1129,7 @@ class Funcoin:
         # beta_inits = rng.standard_normal([q_model, n_init])
         return gamma_inits
 
-    def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1):
+    def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
         
@@ -985,7 +1148,11 @@ class Funcoin:
 
         gamma_here = self.gamma[:,:gamma_dir+1]
 
-        Si_list = fca.make_Si_list(Y_dat)
+        if FC_mode == False:
+            Si_list = fca.make_Si_list(Y_dat)
+        else:
+            Si_list = Y_dat
+
         mat_prods = [(gamma_here.T@Si_list[i]@gamma_here)/(Y_dat[i].shape[0]) for i in range(len(Si_list))]
         if not weighted_io:
             nu_vals = np.array([fca.dfd_func(mat_prods[i]) for i in range(len(Si_list))])
@@ -1052,6 +1219,25 @@ class Funcoin:
             Si_list_tilde.extend(Si_list_tilde_chunk)
 
         return Si_list_tilde
+    
+    def __make_Si_list_tilde_fromFC(self, FC_list, gamma_mat, beta_mat):
+
+        num_gammas = gamma_mat.shape[1]
+        p_model = FC_list[0].shape[0]
+
+        Si_hat_list = [FC_list[i] - gamma_mat@gamma_mat.T@FC_list[i] - FC_list[i]@gamma_mat@gamma_mat.T + 
+                  gamma_mat@gamma_mat.T@FC_list[i]@gamma_mat@gamma_mat.T for i in range(len(FC_list))]
+        
+        Si_list_tilde = []
+        for i in range(len(Si_hat_list)):
+            U_mat, D_mat, V_mat = np.linalg.svd(Si_hat_list[i], full_matrices=False)
+            diag_el = D_mat[:(p_model-num_gammas)]
+            diag_el = np.append(diag_el, np.sqrt(np.exp(beta_mat[0,:])))
+            Dtilde_mat = np.diag(diag_el)
+            Si_list_tilde.append(U_mat@Dtilde_mat@V_mat)
+        
+        return Si_list_tilde
+
 
     def __sample_s2_coefficients(self, X_dat):
         #Only called after decomposing with betaLinReg=True
