@@ -890,16 +890,16 @@ class Funcoin:
 
                 if seed:
                     seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
-                # try:
-                beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list_init=Ti_list)
-                # except:
-                #     beta_mat = beta_mat_new
-                #     gamma_mat = gamma_mat_new
-                #     # best_llh_directions.append(best_llh)
-                #     # best_beta_steps_all.append(best_beta_steps)
-                #     # best_gamma_steps_all.append(best_gamma_steps)
-                #     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
-                #     return gamma_mat, beta_mat
+                try:
+                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list_init=Ti_list)
+                except:
+                    beta_mat = beta_mat_new
+                    gamma_mat = gamma_mat_new
+                    # best_llh_directions.append(best_llh)
+                    # best_beta_steps_all.append(best_beta_steps)
+                    # best_gamma_steps_all.append(best_gamma_steps)
+                    warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
+                    return gamma_mat, beta_mat
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
@@ -929,7 +929,12 @@ class Funcoin:
         sigma_bar = np.sum(Si_list, axis=0)/(sum([Ti_list[i] for i in range(len(Ti_list))]))     
 
         H_mat = sigma_bar
+        print(sigma_bar.dtype)
+        print(sigma_bar.shape)
+        print(fca.test_matrixdef(sigma_bar))
+
         H_pow = fractional_matrix_power(H_mat, -0.5)
+        print(H_pow.dtype)
 
 
         best_gamma_all = []
@@ -955,19 +960,19 @@ class Funcoin:
 
             gamma_old = H_pow@gamma_old
 
-
             llh_steps = [np.squeeze(self.__loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
             llh_steps_split = [np.squeeze(self.__loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
             beta_steps = [beta_init]
             gamma_steps = [np.expand_dims(gamma_init[:,l],1)]
 
             #Initial gamma step
-            
+
             step_ind = 0
             diff = 100
-   
+
             while step_ind<max_iter and diff > tol:
                 #Solve for new gamma
+                print(f'Step {step_ind}')
 
                 #Update beta
 
@@ -991,6 +996,8 @@ class Funcoin:
                 eigvals, eigvecs = np.linalg.eig(HAH_mat)
                 best_ind = np.argmin(eigvals)
 
+                print(H_pow.dtype)
+                print(eigvecs[:,best_ind].dtype)
                 gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
                 llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
                 llh_steps.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
@@ -1005,10 +1012,6 @@ class Funcoin:
 
                 gamma_old = gamma_new
                 beta_old = beta_new
-
-            # print(f'Concluded at step {step_ind} with tol {diff}')
-            # print(np.linalg.norm(gamma_old))
-            # print(beta_old)
 
             gamma_old = gamma_old/np.linalg.norm(gamma_old)
             if gamma_old[0] < 0:
@@ -1229,9 +1232,11 @@ class Funcoin:
         num_gammas = gamma_mat.shape[1]
         p_model = FC_list[0].shape[0]
 
-        Si_hat_list = [(FC_list[i] - gamma_mat@gamma_mat.T@FC_list[i] - FC_list[i]@gamma_mat@gamma_mat.T + 
-                  gamma_mat@gamma_mat.T@FC_list[i]@gamma_mat@gamma_mat.T)*Ti_list[i] for i in range(len(FC_list))]
-        
+        Si_list = [FC_list[i]*Ti_list[i] for i in range(len(FC_list))]
+
+        Si_hat_list = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
+                  gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
+     
         Si_list_tilde = []
         for i in range(len(Si_hat_list)):
             U_mat, D_mat, V_mat = np.linalg.svd(Si_hat_list[i], full_matrices=False)
