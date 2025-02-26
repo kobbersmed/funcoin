@@ -876,7 +876,7 @@ class Funcoin:
             Si_list = [Y_dat[i]*Ti_list_input[i] for i in range(len(Y_dat))]
 
         for i in range(n_dir_init,max_comps):
-            print(i)
+            # print(i)
             # print(f'Direction {i}. n_covars = {n_covars}. n_subj = {n_subj}. n_parc = {n_parc}')
             if i == 0:
                 try:
@@ -929,12 +929,12 @@ class Funcoin:
         sigma_bar = np.sum(Si_list, axis=0)/(sum([Ti_list[i] for i in range(len(Ti_list))]))     
 
         H_mat = sigma_bar
-        print(sigma_bar.dtype)
-        print(sigma_bar.shape)
-        print(fca.test_matrixdef(sigma_bar))
+        # print(sigma_bar.dtype)
+        # print(sigma_bar.shape)
+        # print(fca.test_matrixdef(sigma_bar))
 
         H_pow = fractional_matrix_power(H_mat, -0.5)
-        print(H_pow.dtype)
+        # print(H_pow.dtype)
 
 
         best_gamma_all = []
@@ -971,8 +971,7 @@ class Funcoin:
             diff = 100
 
             while step_ind<max_iter and diff > tol:
-                #Solve for new gamma
-                print(f'Step {step_ind}')
+                # print(f'Step {step_ind}')
 
                 #Update beta
 
@@ -996,8 +995,8 @@ class Funcoin:
                 eigvals, eigvecs = np.linalg.eig(HAH_mat)
                 best_ind = np.argmin(eigvals)
 
-                print(H_pow.dtype)
-                print(eigvecs[:,best_ind].dtype)
+                # print(H_pow.dtype)
+                # print(eigvecs[:,best_ind].dtype)
                 gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
                 llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
                 llh_steps.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
