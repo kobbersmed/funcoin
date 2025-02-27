@@ -50,15 +50,15 @@ def test_matrixdef(mat):
     return def_stat
 
 
-def test_matrixsym(mat):
-    #Tests symmetry of a square matrix
-    #Parameters:
-    #   mat: array-like of shape pxp
-    # 
-    #Returns:
-    #   sym_stat: True if symmetric, False if non-symmetric
-    
-    sym_stat = np.all(abs(mat-mat.T)<1e-6)
+def test_matrixsym(mat, tol = 1e-6):
+    """Tests symmetry of a square matrix
+    Parameters:
+       mat: array-like of shape pxp
+     
+    Returns:
+       sym_stat: True if symmetric, False if non-symmetric
+    """
+    sym_stat = np.all(abs(mat-mat.T)<tol)
     
     return sym_stat
 
