@@ -325,7 +325,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, *kwargs)
 
     def transform_timeseries(self, Y_dat):
         """Takes a list of time series data and transforms it with the gamma matrix from self.
@@ -1111,10 +1111,6 @@ class Funcoin:
         else:
             Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        testSitilde = len(Si_list_tilde) == len(Y_dat)
-        if not testSitilde:
-            raise Exception('Something went wrong in computing Si_tilde_list')
-
         best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
@@ -1272,7 +1268,7 @@ class Funcoin:
         Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
 
         Si_hat_list = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
-                  gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
+                        gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
      
         Si_list_tilde = []
         for i in range(len(Si_hat_list)):
