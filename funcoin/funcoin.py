@@ -9,7 +9,7 @@ Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 
 import numpy as np
 import warnings
-from scipy.linalg import fractional_matrix_power
+# from scipy.linalg import fractional_matrix_power
 from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
@@ -976,9 +976,14 @@ class Funcoin:
 
         H_mat = sigma_bar
 
-        H_pow = fractional_matrix_power(H_mat, -0.5)
+        eigvalsH, eigvecsH = np.linalg.eig(H_mat)
+        eigvals_new = eigvalsH
+        eigvals_new = 1/(np.sqrt(eigvalsH))
 
 
+        H_pow = eigvecsH@np.diag(eigvals_new)@eigvecsH.T
+
+        # H_pow = fractional_matrix_power(H_mat, -0.5)
 
         best_gamma_all = []
         best_beta_all = []
@@ -1018,11 +1023,12 @@ class Funcoin:
                 #Update beta
 
                 try:
+                    # mat_for_inv = sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
+                    # eigvals1, eigvecs1 = np.linalg.eigh(mat_for_inv)
+                    # part1 = eigvecs1@np.diag(1/eigvals1)@eigvecs1.T
                     part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
                 except:
                     raise Exception('Singular matrix occured.')
-                else:
-                    part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
 
                 part2 = sum([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
 
@@ -1131,6 +1137,9 @@ class Funcoin:
         diff = 100
         while step_ind<max_iter and diff > tol:
             try:
+                # mat_for_inv = sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
+                # eigvals2, eigvecs2 = np.eigh(mat_for_inv)
+                # part1 = eigvecs2@np.diag(1/eigvals2)@eigvecs2.T
                 part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
                 part2 = sum([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] for i in range(X_dat.shape[0])])
             except:
