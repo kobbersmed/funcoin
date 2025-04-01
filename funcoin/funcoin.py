@@ -420,7 +420,7 @@ class Funcoin:
         return Z_scores
 
     def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False):
-        """Performs normCAP decomposition and bootstrapping of beta coefficients given covariate matrix, X_dat, and a list of time series data, Y_dat.
+        """Performs FUNCOIN decomposition and bootstrapping of beta coefficients given covariate matrix, X_dat, and a list of time series data, Y_dat.
         To account for the case where the bootstrap sampling changes the order of the gammas identified, the gamma vectors of 
         the bootstrapped gammas are sorted consecutively to maximize the dot product with the gammas identified on the original dataset.
         For already fitted or predefined gamma, bootstrapping of beta coefficients can be performed by calling .bootstrap_only([args])
@@ -465,7 +465,7 @@ class Funcoin:
 
 
     def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True):
-        """Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the normCAP instance self.gamma, self.beta) .
+        """Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the FUNCOIN instance self.gamma, self.beta) .
         
         Parameters:
         -----------
@@ -928,7 +928,7 @@ class Funcoin:
                 try:
                     _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
                 except:
-                    raise Exception('Exception occured. Did not find any principal directions using CAP algorithm.')
+                    raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
