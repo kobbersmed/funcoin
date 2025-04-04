@@ -9,7 +9,6 @@ Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 
 import numpy as np
 import warnings
-# from scipy.linalg import fractional_matrix_power
 from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
@@ -38,8 +37,6 @@ class Funcoin:
     gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
     __fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
-
-    ###IDEA: FUNCTION TO ADD DIRECTION
 
     def __init__(self, gamma=False, beta=False):
         """Constructs relevant instance variables as either False (__fitted), predefined (gamma or beta), or NaN (all others).
@@ -510,7 +507,6 @@ class Funcoin:
         rng = np.random.default_rng(seed = seed_bootstrap)
         
         for i2 in range(n_samples):
-            # print(f'Bootstrap sample {i2}')
             beta_bootstrap = np.zeros((X_dat.shape[1],self.gamma.shape[1]))*np.nan
             sample_inds = rng.choice(n_subj, n_subj)
             Y_sample = [Y_dat[i] for i in sample_inds]
@@ -985,8 +981,6 @@ class Funcoin:
 
         H_pow = eigvecsH@np.diag(eigvals_new)@eigvecsH.T
 
-        # H_pow = fractional_matrix_power(H_mat, -0.5)
-
         best_gamma_all = []
         best_beta_all = []
         best_llh_all = []
@@ -1002,7 +996,6 @@ class Funcoin:
         for l in range(n_init):
 
             beta_old = beta_init
-            # gamma_old = np.expand_dims(Sbar_u@Ds_inv@gamma_init[:,l],1)
             gamma_old = np.expand_dims(gamma_init[:,l],1)
             gamma_norm = np.linalg.norm(gamma_old)
             if gamma_norm != 0:
@@ -1015,8 +1008,6 @@ class Funcoin:
             beta_steps = [beta_init]
             gamma_steps = [np.expand_dims(gamma_init[:,l],1)]
 
-            #Initial gamma step
-
             step_ind = 0
             diff = 100
 
@@ -1025,12 +1016,10 @@ class Funcoin:
                 #Update beta
 
                 try:
-                    # mat_for_inv = sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
-                    # eigvals1, eigvecs1 = np.linalg.eigh(mat_for_inv)
-                    # part1 = eigvecs1@np.diag(1/eigvals1)@eigvecs1.T
-                    # part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
+
                     matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
-                    part1 = np.linalg.inv(np.sum(matlist_arr, axis=0))
+                    mat_for_inv = np.sum(matlist_arr, axis=0)
+                    part1 = np.linalg.inv(mat_for_inv)
 
                 except:
                     raise Exception('Singular matrix occured.')
@@ -1075,7 +1064,6 @@ class Funcoin:
             else:
                 llh_steps_beta_optim, beta_new = self.__optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
         
-            # best_llh_ind_here = np.argmin(llh_steps)
             best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
             best_beta_here = beta_new
@@ -1133,8 +1121,6 @@ class Funcoin:
 
     def __optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4):
 
-        # warnings.filterwarnings('error')
-        # Si_list = make_Si_list(Y_dat)
         Xi_list = fca.make_Xi_list(X_dat)
         llh_vals = [self.__loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
 
@@ -1165,6 +1151,7 @@ class Funcoin:
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
         beta_new = np.expand_dims(np.concatenate(([regmodel.intercept_], regmodel.coef_)),1)
         llh_vals = [self.__loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
+
         return llh_vals, beta_new
 
 
@@ -1181,7 +1168,7 @@ class Funcoin:
     def __random_initial_conds(self, p_model, n_init, seed=None):
         rng = np.random.default_rng(seed=seed)
         gamma_inits = rng.standard_normal([p_model,n_init])
-        # beta_inits = rng.standard_normal([q_model, n_init])
+
         return gamma_inits
 
     def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
@@ -1234,6 +1221,7 @@ class Funcoin:
                 nu_vals = np.array([fca.dfd_func(mat_prods[i])*(Y_dat[i].shape[0]) for i in range(len(Si_list))])
                 sum_of_Ti = np.sum(Ti_list)
                 dfd_proj = (np.sum(nu_vals))/sum_of_Ti
+                
         return dfd_proj
     
     def __make_Y_tilde_list(self, Y_dat, gamma_mat, beta_mat):
