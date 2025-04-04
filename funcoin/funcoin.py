@@ -272,7 +272,7 @@ class Funcoin:
 
         w_io = not Ti_equal
 
-        dfd_values_training = self.calc_dfd_values_FC(FC_list, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        dfd_values_training = self.calc_dfd_values_FC(FC_list, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
         self.dfd_values_training = dfd_values_training
 
         if betaLinReg:
@@ -660,7 +660,7 @@ class Funcoin:
         dfd_vals = self.calc_dfd_values(self, Y_dat, weighted_io, dfd_aritm, logtrick_io)
         return dfd_vals
 
-    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1):
+    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1, Ti_list=[]):
         """
         Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
         
@@ -687,7 +687,7 @@ class Funcoin:
    
 
         n_dir = self.gamma.shape[1]
-        dfd_vals = [self.__deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True) for i in range(n_dir)]
+        dfd_vals = [self.__deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list) for i in range(n_dir)]
         return dfd_vals
 
 
@@ -972,11 +972,13 @@ class Funcoin:
             gamma_init = self.__random_initial_conds(p_model, n_init, seed=seed)
 
         Xi_list = fca.make_Xi_list(X_dat)
-        sigma_bar = np.sum(Si_list, axis=0)/(sum([Ti_list[i] for i in range(len(Ti_list))]))     
+        Ti_list_arr = np.array(Ti_list)
+        Si_list_arr = np.array(Si_list)
+        sigma_bar = np.sum(Si_list_arr, axis=0)/np.sum(Ti_list_arr)
 
         H_mat = sigma_bar
 
-        eigvalsH, eigvecsH = np.linalg.eig(H_mat)
+        eigvalsH, eigvecsH = np.linalg.eigh(H_mat)
         eigvals_new = eigvalsH
         eigvals_new = 1/(np.sqrt(eigvalsH))
 
@@ -1026,11 +1028,15 @@ class Funcoin:
                     # mat_for_inv = sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                     # eigvals1, eigvecs1 = np.linalg.eigh(mat_for_inv)
                     # part1 = eigvecs1@np.diag(1/eigvals1)@eigvecs1.T
-                    part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
+                    # part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
+                    matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
+                    part1 = np.linalg.inv(np.sum(matlist_arr, axis=0))
+
                 except:
                     raise Exception('Singular matrix occured.')
 
-                part2 = sum([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
+                matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
+                part2 = np.sum(matlist2_arr, axis=0)
 
                 beta_new = beta_old - part1@part2
 
@@ -1038,11 +1044,12 @@ class Funcoin:
                 llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
 
                 #Update gamma
-                A_mat = sum([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
+                A_matlist_arr = np.array([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
+                A_mat = np.sum(A_matlist_arr, axis=0)
                 HAH_mat = H_pow @ A_mat @ H_pow
-                eigvals, eigvecs = np.linalg.eig(HAH_mat)
-                best_ind = np.argmin(eigvals)
 
+                eigvals, eigvecs = np.linalg.eigh(HAH_mat)
+                best_ind = np.argmin(eigvals)
 
                 gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
                 llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
@@ -1137,11 +1144,10 @@ class Funcoin:
         diff = 100
         while step_ind<max_iter and diff > tol:
             try:
-                # mat_for_inv = sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
-                # eigvals2, eigvecs2 = np.eigh(mat_for_inv)
-                # part1 = eigvecs2@np.diag(1/eigvals2)@eigvecs2.T
-                part1 = np.linalg.inv(sum([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])]))
-                part2 = sum([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] for i in range(X_dat.shape[0])])
+                matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
+                part1 = np.linalg.inv(np.sum(matlist_arr, axis=0))
+                matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] for i in range(X_dat.shape[0])])
+                part2 = np.sum(matlist2_arr, axis=0)
             except:
                 raise Exception('Singular matrix occured.')
 
@@ -1165,10 +1171,10 @@ class Funcoin:
     def __loglikelihood(self, beta, gamma, X_dat, Ti_list, Si_list):
         #Ignoring constants
         Xi_list = fca.make_Xi_list(X_dat)
-        
 
-        llh_value = (0.5 * sum([(Xi_list[i].T@beta)*Ti_list[i] for i in range(X_dat.shape[0])]) + 
-        0.5 * sum([gamma.T@Si_list[i]@gamma * np.exp(-Xi_list[i].T@beta) for i in range(X_dat.shape[0])]))
+        arr1 = np.array([(Xi_list[i].T@beta)*Ti_list[i] for i in range(X_dat.shape[0])])
+        arr2 = np.array([gamma.T@Si_list[i]@gamma * np.exp(-Xi_list[i].T@beta) for i in range(X_dat.shape[0])])
+        llh_value = (0.5 * np.sum(arr1) + 0.5 * np.sum(arr2))
 
         return llh_value
 
@@ -1178,7 +1184,7 @@ class Funcoin:
         # beta_inits = rng.standard_normal([q_model, n_init])
         return gamma_inits
 
-    def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False):
+    def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
         
@@ -1199,8 +1205,10 @@ class Funcoin:
 
         if FC_mode == False:
             Si_list = fca.make_Si_list(Y_dat)
+            Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Si_list))])
         else:
             Si_list = Y_dat
+            Ti_list = np.array(Ti_list)
 
         mat_prods = [(gamma_here.T@Si_list[i]@gamma_here)/(Y_dat[i].shape[0]) for i in range(len(Si_list))]
         if not weighted_io:
@@ -1216,15 +1224,15 @@ class Funcoin:
             if not dfd_aritm:
                 if not logtrick_io:
                     nu_vals = np.array([fca.dfd_func(mat_prods[i])**(Y_dat[i].shape[0]) for i in range(len(Si_list))])
-                    sum_of_Ti = sum([Y_dat[i].shape[0] for i in range(len(Si_list))])
+                    sum_of_Ti = np.sum(Ti_list)
                     dfd_proj = (np.prod(nu_vals**(1/sum_of_Ti)))
                 elif logtrick_io:
                     nu_vals = np.array([np.log(fca.dfd_func(mat_prods[i]))*(Y_dat[i].shape[0]) for i in range(len(Si_list))])
-                    sum_of_Ti = sum([Y_dat[i].shape[0] for i in range(len(Si_list))])
+                    sum_of_Ti = np.sum(Ti_list)
                     dfd_proj = np.exp((np.sum(nu_vals)/sum_of_Ti))
             else:
                 nu_vals = np.array([fca.dfd_func(mat_prods[i])*(Y_dat[i].shape[0]) for i in range(len(Si_list))])
-                sum_of_Ti = sum([Y_dat[i].shape[0] for i in range(len(Si_list))])
+                sum_of_Ti = np.sum(Ti_list)
                 dfd_proj = (np.sum(nu_vals))/sum_of_Ti
         return dfd_proj
     
