@@ -1268,23 +1268,43 @@ class Funcoin:
     def __make_Si_list_tilde_fromFC(self, FC_list, gamma_mat, beta_mat, Ti_list, ddof):
 
         num_gammas = gamma_mat.shape[1]
-        p_model = FC_list[0].shape[0]
+        # p_model = FC_list[0].shape[0]
 
         Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
 
-        Si_hat_list = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
-                        gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
+        # Si_hat_list_alt = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
+        #                 gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
      
-        Si_list_tilde = []
-        for i in range(len(Si_hat_list)):
-            eigvals_hat, eigvecs_hat = np.linalg.eigh(Si_hat_list[i])
-            eigvals_hat_sorted = np.flip(eigvals_hat)
-            eigvecs_hat_sorted = np.flip(eigvecs_hat, axis=1)
-            eigs_mod = eigvals_hat_sorted[:(p_model-num_gammas)]
-            eigs_mod = np.append(eigs_mod, np.exp(beta_mat[0,:]))
-            Dtilde_mat = np.diag(eigs_mod)
-            Si_list_tilde.append(eigvecs_hat_sorted@Dtilde_mat@eigvecs_hat_sorted.T)
-            
+        gamma_prod = gamma_mat@gamma_mat.T
+        # _, eigvecs_gammaprod = np.linalg.eigh(gamma_prod)
+        # eigvecs_gammaprod_used = eigvecs_gammaprod[:,-num_gammas:]
+
+        Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+                        gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
+
+        # Si_list_tilde_flip = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,:])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
+        
+        # if num_gammas==3:
+        #     Si_list_tilde_perm = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,[0,2,1]])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
+
+        # Si_list_tilde_alt = []
+        # for i in range(len(Si_hat_list_alt)):
+        #     eigvals_hat, eigvecs_hat = np.linalg.eigh(Si_hat_list_alt[i])
+        #     eigvals_hat_sorted = np.flip(eigvals_hat)
+        #     eigvecs_hat_sorted = np.flip(eigvecs_hat, axis=1)
+        #     eigs_mod = eigvals_hat_sorted[:(p_model-num_gammas)]
+        #     eigs_mod = np.append(eigs_mod, np.exp(beta_mat[0,:]))
+        #     Dtilde_mat = np.diag(eigs_mod)
+        #     Si_list_tilde_alt.append(eigvecs_hat_sorted@Dtilde_mat@eigvecs_hat_sorted.T)
+
+        # print('HERE:')
+        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
+        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_flip[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
+        # if num_gammas==3:
+        #     print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_perm[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
+
         return Si_list_tilde
 
 
