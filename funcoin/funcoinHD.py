@@ -1,4 +1,5 @@
 from .funcoin import Funcoin
+from sklearn.covariance import ledoit_wolf
 
 class FuncoinHD(Funcoin):
     """
@@ -27,19 +28,7 @@ class FuncoinHD(Funcoin):
     def __str__(self):
         firststr = 'Instance of the high-dimensional case of Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
 
-        if self.__fitted:
-            fitstr = 'have been fitted.'
-        else:
-            fitstr = 'are predefined.'
-
-        if (self.gamma is False) and (self.beta is False):
-            laststr = f'Neither gamma nor beta are defined.'
-        elif (self.gamma is not False) and (self.beta is False):
-            laststr = f'gamma is predefined. beta is not defined.'
-        elif (self.gamma is False) and (self.beta is not False):
-            laststr = f'beta is predefined. gamma is not defined.'
-        elif (self.gamma is not False) and (self.beta is not False):
-            laststr = f'gamma and beta ' + fitstr
+        laststr = self.__create_fitstring()
 
         return firststr + laststr
 
@@ -88,5 +77,13 @@ class FuncoinHD(Funcoin):
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
+        try:
+            add_to_fit = kwargs['add_to_fit']
+        except:
+            add_to_fit = False
+
+        super().__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
 
+
+        ##Implement fitting routine here

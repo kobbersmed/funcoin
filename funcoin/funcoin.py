@@ -57,19 +57,7 @@ class Funcoin:
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
 
-        if self.__fitted:
-            fitstr = 'have been fitted.'
-        else:
-            fitstr = 'are predefined.'
-
-        if (self.gamma is False) and (self.beta is False):
-            laststr = f'Neither gamma nor beta are defined.'
-        elif (self.gamma is not False) and (self.beta is False):
-            laststr = f'gamma is predefined. beta is not defined.'
-        elif (self.gamma is False) and (self.beta is not False):
-            laststr = f'beta is predefined. gamma is not defined.'
-        elif (self.gamma is not False) and (self.beta is not False):
-            laststr = f'gamma and beta ' + fitstr
+        laststr = self.__create_fitstring()
 
         return firststr + laststr
 
@@ -117,30 +105,12 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decomp_settings['max_comps'] = max_comps
-        self.decomp_settings['gamma_init'] = gamma_init
-        self.decomp_settings['rand_init'] = rand_init
-        self.decomp_settings['n_init'] = n_init
-        self.decomp_settings['max_iter'] = max_iter
-        self.decomp_settings['tol'] = tol
-        self.decomp_settings['trace_sol'] = trace_sol
-        self.decomp_settings['seed_initial'] = seed_initial
-        self.decomp_settings['betaLinReg'] = betaLinReg
-
-
-        isfit = self.isfitted()
-
         try:
             add_to_fit = kwargs['add_to_fit']
         except:
             add_to_fit = False
 
-        if isfit and not (overwrite_fit or add_to_fit):
-            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
-        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
-            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
-        if overwrite_fit and np.ndim(self.gamma)>0:
-            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+        self.__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
         gamma_mat, beta_mat = self.__decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
 
@@ -229,30 +199,12 @@ class Funcoin:
                 Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])
 
 
-        self.decomp_settings['max_comps'] = max_comps
-        self.decomp_settings['gamma_init'] = gamma_init
-        self.decomp_settings['rand_init'] = rand_init
-        self.decomp_settings['n_init'] = n_init
-        self.decomp_settings['max_iter'] = max_iter
-        self.decomp_settings['tol'] = tol
-        self.decomp_settings['trace_sol'] = trace_sol
-        self.decomp_settings['seed_initial'] = seed_initial
-        self.decomp_settings['betaLinReg'] = betaLinReg
-
-
-        isfit = self.isfitted()
-
         try:
             add_to_fit = kwargs['add_to_fit']
         except:
             add_to_fit = False
 
-        if isfit and not (overwrite_fit or add_to_fit):
-            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
-        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
-            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
-        if overwrite_fit and np.ndim(self.gamma)>0:
-            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+        self.__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
         gamma_mat, beta_mat = self.__decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
 
@@ -892,6 +844,44 @@ class Funcoin:
         return self.__fitted
 
     #Private methods
+
+    def __initialise_decomposition(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False):
+        self.decomp_settings['max_comps'] = max_comps
+        self.decomp_settings['gamma_init'] = gamma_init
+        self.decomp_settings['rand_init'] = rand_init
+        self.decomp_settings['n_init'] = n_init
+        self.decomp_settings['max_iter'] = max_iter
+        self.decomp_settings['tol'] = tol
+        self.decomp_settings['trace_sol'] = trace_sol
+        self.decomp_settings['seed_initial'] = seed_initial
+        self.decomp_settings['betaLinReg'] = betaLinReg
+
+        isfit = self.isfitted()
+
+        if isfit and not (overwrite_fit or add_to_fit):
+            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
+        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
+            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
+        if overwrite_fit and np.ndim(self.gamma)>0:
+            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+
+    def __create_fitstring(self):
+        if self.__fitted:
+            fitstr = 'have been fitted.'
+        else:
+            fitstr = 'are predefined.'
+
+        if (self.gamma is False) and (self.beta is False):
+            laststr = f'Neither gamma nor beta are defined.'
+        elif (self.gamma is not False) and (self.beta is False):
+            laststr = f'gamma is predefined. beta is not defined.'
+        elif (self.gamma is False) and (self.beta is not False):
+            laststr = f'beta is predefined. gamma is not defined.'
+        elif (self.gamma is not False) and (self.beta is not False):
+            laststr = f'gamma and beta ' + fitstr
+
+        return laststr
+        
 
     def __decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
 
