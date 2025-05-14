@@ -2,7 +2,7 @@ import numpy as np
 import warnings
 
 """
-Auxiliary functions for  Functional Connectivity Integrative Normative Modelling (FUNCOIN)
+Auxiliary functions for Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 @Author and maintainer of Python package: Janus Rønn Lind Kobbersmed, janus@cfin.au.dk or januslind@gmail.com
 @Based on the Covariate-Assisted Principal regression method: Zhao, Y. et al. (2021). 'Covariate Assisted Principal regression for covariance matrix outcomes', Biostatistics, 22(3), pp. 629-45.  
 """ 
