@@ -110,35 +110,11 @@ class Funcoin:
         except:
             add_to_fit = False
 
-        self.__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
+        self.__store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
         gamma_mat, beta_mat = self.__decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
 
-        self.__fitted = True
-
-        self.gamma = gamma_mat
-        self.beta = beta_mat
-
-        u_vals_training = self.transform_timeseries(Y_dat)
-        self.u_training = u_vals_training
-
-        model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
-
-        Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-        Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
-
-        w_io = not Ti_equal
-
-        dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
-        self.dfd_values_training = dfd_values_training
-
-        if betaLinReg:
-            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
-            self.beta_CI95_parametric = beta_CI95_parametric
-            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
-            self.beta_pvals = beta_pvals
-            self.beta_tvals = beta_tvals
+        self.__store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = [])
 
     def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
         """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, and covariate matrix, X_dat. 
@@ -204,32 +180,12 @@ class Funcoin:
         except:
             add_to_fit = False
 
-        self.__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
+        self.__store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
         gamma_mat, beta_mat = self.__decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
 
-        self.__fitted = True
+        self.__store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_equal = Ti_equal)
 
-        self.gamma = gamma_mat
-        self.beta = beta_mat
-
-        u_vals_training = self.transform_FC(FC_list)
-        self.u_training = u_vals_training
-
-        model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
-
-        w_io = not Ti_equal
-
-        dfd_values_training = self.calc_dfd_values_FC(FC_list, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
-        self.dfd_values_training = dfd_values_training
-
-        if betaLinReg:
-            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
-            self.beta_CI95_parametric = beta_CI95_parametric
-            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
-            self.beta_pvals = beta_pvals
-            self.beta_tvals = beta_tvals
 
     def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
@@ -845,7 +801,7 @@ class Funcoin:
 
     #Private methods
 
-    def __initialise_decomposition(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False):
+    def __store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False):
         self.decomp_settings['max_comps'] = max_comps
         self.decomp_settings['gamma_init'] = gamma_init
         self.decomp_settings['rand_init'] = rand_init
@@ -882,6 +838,16 @@ class Funcoin:
 
         return laststr
         
+    def __initialise_gamma(self, gamma_init, rand_init, p_model, n_init, seed):
+        
+
+        if type(gamma_init) == bool and not rand_init:
+            gamma_init = np.ones([p_model,1])
+        if rand_init:
+            gamma_init = self.__random_initial_conds(p_model, n_init, seed=seed)
+
+
+        return gamma_init
 
     def __decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
 
@@ -897,10 +863,6 @@ class Funcoin:
         else:
             n_dir_init = 0
 
-        best_llh_directions = []
-        best_beta_steps_all = []
-        best_gamma_steps_all = []
-
         if FC_mode == False:
             Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
@@ -910,9 +872,12 @@ class Funcoin:
 
         for i in range(n_dir_init,max_comps):
 
+            p_model = Si_list[0].shape[0]
+            gamma_init_used = self.__initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
+
             if i == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
+                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -923,7 +888,7 @@ class Funcoin:
                 if seed:
                     seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
@@ -942,20 +907,13 @@ class Funcoin:
         return gamma_mat, beta_mat
 
 
-    def __first_direction(self, Si_list, X_dat, Ti_list, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol = 1e-4, trace_sol = False, seed = None, betaLinReg = False):        
+    def __first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, seed = None, betaLinReg = False):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
 
-        p_model = Si_list[0].shape[0]
         q_model = X_dat.shape[1]
-
         beta_init = np.zeros([q_model,1])
-
-        if type(gamma_init) == bool and not rand_init:
-            gamma_init = np.ones([p_model,1])
-        if rand_init:
-            gamma_init = self.__random_initial_conds(p_model, n_init, seed=seed)
 
         Xi_list = fca.make_Xi_list(X_dat)
         Ti_list_arr = np.array(Ti_list)
@@ -981,9 +939,9 @@ class Funcoin:
         llh_steps_split_all = []
         llh_steps_beta_optim_all = []
 
-        n_init = min(n_init, gamma_init.shape[1])
+        n_init_used = gamma_init.shape[1]
 
-        for l in range(n_init):
+        for l in range(n_init_used):
 
             beta_old = beta_init
             gamma_old = np.expand_dims(gamma_init[:,l],1)
@@ -1102,7 +1060,7 @@ class Funcoin:
         else:
             Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
+        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
@@ -1257,45 +1215,46 @@ class Funcoin:
     
     def __make_Si_list_tilde_fromFC(self, FC_list, gamma_mat, beta_mat, Ti_list, ddof):
 
-        num_gammas = gamma_mat.shape[1]
-        # p_model = FC_list[0].shape[0]
-
         Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
 
-        # Si_hat_list_alt = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
-        #                 gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
-     
+
         gamma_prod = gamma_mat@gamma_mat.T
-        # _, eigvecs_gammaprod = np.linalg.eigh(gamma_prod)
-        # eigvecs_gammaprod_used = eigvecs_gammaprod[:,-num_gammas:]
 
         Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
                         gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
 
-        # Si_list_tilde_flip = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,:])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
-        
-        # if num_gammas==3:
-        #     Si_list_tilde_perm = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,[0,2,1]])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
-
-        # Si_list_tilde_alt = []
-        # for i in range(len(Si_hat_list_alt)):
-        #     eigvals_hat, eigvecs_hat = np.linalg.eigh(Si_hat_list_alt[i])
-        #     eigvals_hat_sorted = np.flip(eigvals_hat)
-        #     eigvecs_hat_sorted = np.flip(eigvecs_hat, axis=1)
-        #     eigs_mod = eigvals_hat_sorted[:(p_model-num_gammas)]
-        #     eigs_mod = np.append(eigs_mod, np.exp(beta_mat[0,:]))
-        #     Dtilde_mat = np.diag(eigs_mod)
-        #     Si_list_tilde_alt.append(eigvecs_hat_sorted@Dtilde_mat@eigvecs_hat_sorted.T)
-
-        # print('HERE:')
-        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
-        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_flip[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
-        # if num_gammas==3:
-        #     print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_perm[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
 
         return Si_list_tilde
+
+    def __store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = []):
+        self.__fitted = True
+
+        self.gamma = gamma_mat
+        self.beta = beta_mat
+
+        if not FC_mode:
+            u_vals_training = self.transform_timeseries(Y_dat)
+            Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
+        else:
+            u_vals_training = self.transform_FC(Y_dat)
+        
+        self.u_training = u_vals_training
+
+        model_pred_training = X_dat@beta_mat
+        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
+
+        w_io = not Ti_equal
+
+        dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        self.dfd_values_training = dfd_values_training
+
+        if betaLinReg:
+            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
+            self.beta_CI95_parametric = beta_CI95_parametric
+            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
+            self.beta_pvals = beta_pvals
+            self.beta_tvals = beta_tvals
 
 
     def __sample_s2_coefficients(self, X_dat):

@@ -1,5 +1,6 @@
 from .funcoin import Funcoin
-from sklearn.covariance import ledoit_wolf
+from . import funcoin_auxiliary as fca
+import numpy as np
 
 class FuncoinHD(Funcoin):
     """
@@ -33,7 +34,7 @@ class FuncoinHD(Funcoin):
         return firststr + laststr
 
 
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. 
         
         Parameters:
@@ -82,8 +83,92 @@ class FuncoinHD(Funcoin):
         except:
             add_to_fit = False
 
-        super().__initialise_decomposition(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
+        super().__store_decomposition_options(self, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
 
+    def __decompositionHD(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
+        
+        n_subj = len(Y_dat)
 
-        ##Implement fitting routine here
+        if (not overwrite_fit) and (add_to_fit):
+            gamma_mat = self.gamma
+            beta_mat = self.beta
+        else:
+            gamma_mat = False
+
+        if np.ndim(gamma_mat)>0:
+            n_dir_init = gamma_mat.shape[1]
+            gamma_mat_new = gamma_mat
+        else:
+            n_dir_init = 0
+
+        if FC_mode == False:
+            Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
+            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            Si_list = fca.make_Si_list(Y_dat)
+        else:
+            Si_list = fca.make_Si_list_from_FC_list(Y_dat, Ti_list, ddof)
+
+        
+
+        step_ind = 0
+        shrink_diff = 100
+
+        for i_dir in range(n_dir_init,max_comps):
+            p_model = Si_list[0].shape[0]
+            gamma_init_used = super().__initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
+
+
+            for i_init in range(n_init):
+                gamma_old = np.expand_dims(gamma_init_used[:,i_init],1)
+                beta_old = beta_init
+
+                while (step_ind<max_iter) and (shrink_diff > tol_shrinkage):
+                    
+                    mu_new, rho_new = self.__calc_shrinkage_parameters(X_dat, gamma_old, beta_old, Si_list, Ti_list)
+
+                    Si_star_list = self.__create_Si_star_list(mu_new, rho_new, Si_list)
+                    
+
+                    best_llh, best_beta, best_gamma, _, _, _, _, _, _, _, _ = super().__first_direction(Si_star_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, seed = None, betaLinReg = False)
+                    
+                    rho_diff = np.abs(rho_new-rho_old)
+                    mu_diff = np.abs(mu_new-mu_old)
+                    shrink_diff = np.maximum(rho_diff, mu_diff)
+                    
+                    rho_old = rho_new
+                    mu_old = mu_new
+                    gamma_old = best_gamma
+                    beta_old = best_beta
+
+                    pass
+
+
+    def __calc_shrinkage_parameters(X_dat, gamma_vec, beta_vec, Si_list, Ti_list):
+        n_subj = X_dat.shape[0]
+        Xi_list = fca.make_Xi_list(X_dat)
+        exp_xi_beta_array = np.array([Xi_list[i].T@np.exp(beta_vec) for i in range(n_subj)]) 
+        exp_x_beta_sum = np.sum(exp_xi_beta_array)
+
+        transf_Si_array = np.array([gamma_vec.T@Si_list[i]@gamma_vec for i in range(n_subj)])
+
+        mu = (1/(n_subj * (gamma_vec.T@gamma_vec)))*exp_x_beta_sum
+        # phi_i_sq = np.array([mu*(gamma_vec.T@gamma_vec)-exp_xi_beta_array[i] for i in range(len(Xi_list))])**2
+        # phi_sq = (1/n_subj) * np.sum(phi_i_sq)
+        
+        deltahat_i_sq = np.array([transf_Si_array[i]-mu*(gamma_vec.T@gamma_vec) for i in range(n_subj)])**2
+        deltahat_sq = (1/n_subj)*np.sum(deltahat_i_sq)
+
+        psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        psihat_sq = (1/n_subj)*np.sum(np.array([np.minimum(psihat_i_sq[i], deltahat_i_sq[i]) for i in range(n_subj)]))
+
+        rho = psihat_sq/deltahat_sq
+        
+        
+        return mu, rho
+
+    def __create_Si_star_list(mu, rho, Si_list):
+        p_model = Si_list[0].shape[0]
+        Si_star_list = [rho*mu*np.identity(p_model)+(1-rho)*Si_list[i] for i in range(len(Si_list))]
+
+        return Si_star_list
