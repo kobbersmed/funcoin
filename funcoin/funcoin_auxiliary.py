@@ -1,6 +1,12 @@
 import numpy as np
 import warnings
 
+"""
+Auxiliary functions for  Functional Connectivity Integrative Normative Modelling (FUNCOIN)
+@Author and maintainer of Python package: Janus Rønn Lind Kobbersmed, janus@cfin.au.dk or januslind@gmail.com
+@Based on the Covariate-Assisted Principal regression method: Zhao, Y. et al. (2021). 'Covariate Assisted Principal regression for covariance matrix outcomes', Biostatistics, 22(3), pp. 629-45.  
+""" 
+
 def calc_covmatrix_listtolist(Y_dat, ddof=0):
     """Calculates the Pearson correlation matrix, which is used to find the transformed data in the FUNCOIN class method transform_timeseries.
     In the FUNCOIN model, time series data is standardized (mean 0, variance 1) and the covariance matrix with n degrees of freedom is computed,
