@@ -27,15 +27,17 @@ def visualize_gamma_coefs(Fcn, n_comps = 1, threshold = False):
     elif type(Fcn) ==  np.ndarray:
         gamma_mat = Fcn
 
+    p_model = gamma_mat.shape[0]
+
     for i in range(n_comps):
         fig, ax = plt.subplots(1)
-        ax.plot([0,0], [1, gamma_mat.shape[0]], 'k', linewidth=3)
+        ax.plot([0,0], [1, p_model], 'k', linewidth=3)
 
         if threshold:
-            ax.plot([-threshold,-threshold], [1, gamma_mat.shape[0]], 'k--')
-            ax.plot([threshold,threshold], [1, gamma_mat.shape[0]], 'k--')
+            ax.plot([-threshold,-threshold], [1, p_model], 'k--')
+            ax.plot([threshold,threshold], [1, p_model], 'k--')
 
-        for k in range(gamma_mat.shape[0]):
+        for k in range(p_model):
             if gamma_mat[k,i]>0:
                 col = 'r'
             else:
@@ -43,7 +45,7 @@ def visualize_gamma_coefs(Fcn, n_comps = 1, threshold = False):
 
             ax.plot(np.array([0, gamma_mat[k,i]]), np.array([k+1,k+1]), col, linewidth= 2)
 
-
+        ax.set_yticks(np.arange(p_model)+1)
         ax.set_xlabel('gamma loading')
         ax.set_ylabel('Region number')
         plt.tight_layout()
