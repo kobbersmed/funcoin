@@ -35,7 +35,7 @@ class FuncoinHD(Funcoin):
     def __str__(self):
         firststr = 'Instance of the high-dimensional case of Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
 
-        laststr = self.__create_fitstring()
+        laststr = super().__create_fitstring()
 
         return firststr + laststr
 
@@ -66,7 +66,9 @@ class FuncoinHD(Funcoin):
 
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.mu: Vector of length n_dir. Contains the mu values from the shrinkage procedure
+        self.mu: Vector of length n_dir. Contains the fitted mu values for each direction from the shrinkage procedure. The "shrinkage target" is mu*I, where I is the p-by-p identity matrix.
+        self.rho: Vector of length n_dir. Contains the fitted rho values (shrinkage weights) for each direction from the shrinkage procedure. The shrunk covariance matrix for subject i is rho*mu*I + (1-rho)*S_i, 
+                    where S_i is the sample covariance matrix of subject i, mu is the shrinkage weight, and I is the p-by-p identity matrix. 
         self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
         self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
         self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
@@ -125,7 +127,10 @@ class FuncoinHD(Funcoin):
         --------
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)).
+        self.mu: Vector of length n_dir. Contains the fitted mu values for each direction from the shrinkage procedure. The "shrinkage target" is mu*I, where I is the p-by-p identity matrix.
+        self.rho: Vector of length n_dir. Contains the fitted rho values (shrinkage weights) for each direction from the shrinkage procedure. The shrunk covariance matrix for subject i is rho*mu*I + (1-rho)*S_i, 
+                    where S_i is the sample covariance matrix of subject i, mu is the shrinkage weight, and I is the p-by-p identity matrix. 
         self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
         self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
         self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
@@ -159,7 +164,7 @@ class FuncoinHD(Funcoin):
         except:
             add_to_fit = False
 
-        self.__store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, tol_shrinkage = tol_shrinkage)
+        super().__store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, tol_shrinkage = tol_shrinkage)
 
         beta_mat, gamma_mat, mu_vec, rho_vec = self.__decompositionHD(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = False, Ti_list=[], ddof = 0)
        
@@ -192,6 +197,9 @@ class FuncoinHD(Funcoin):
 
         self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
         self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        self.mu: Vector of length n_dir. Contains the fitted mu values for each direction from the shrinkage procedure. The "shrinkage target" is mu*I, where I is the p-by-p identity matrix.
+        self.rho: Vector of length n_dir. Contains the fitted rho values (shrinkage weights) for each direction from the shrinkage procedure. The shrunk covariance matrix for subject i is rho*mu*I + (1-rho)*S_i, 
+                    where S_i is the sample covariance matrix of subject i, mu is the shrinkage weight, and I is the p-by-p identity matrix. 
         self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
         self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
         self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
@@ -308,9 +316,9 @@ class FuncoinHD(Funcoin):
                 beta_old = best_beta
             
             if betaLinReg:
-                _, beta_new = self.__update_beta_LinReg(Si_star_list, X_dat, Ti_list, gamma_old)
+                _, beta_new = super().__update_beta_LinReg(Si_star_list, X_dat, Ti_list, gamma_old)
             else:
-                _, beta_new = self.__optimize_only_beta(Si_star_list, X_dat, Ti_list, beta_old, gamma_old)
+                _, beta_new = super().__optimize_only_beta(Si_star_list, X_dat, Ti_list, beta_old, gamma_old)
         
 
             gammas_allinits.append(gamma_old)
