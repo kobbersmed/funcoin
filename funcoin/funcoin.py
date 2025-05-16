@@ -62,7 +62,7 @@ class Funcoin:
         return firststr + laststr
 
     #Public methods
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. 
         
         Parameters:
@@ -116,8 +116,8 @@ class Funcoin:
 
         self.__store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = [])
 
-    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
-        """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, and covariate matrix, X_dat. 
+    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
+        """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
         
         Parameters:
         -----------
@@ -167,13 +167,9 @@ class Funcoin:
         if type(Ti_list) == int:
             Ti_val = Ti_list
             Ti_list = [Ti_val for i in range(len(FC_list))]
-            Ti_equal = True
         elif type(Ti_list) == list:
             if len(Ti_list)!=len(FC_list):
                 raise Exception('Length of list of FC matrices and list of number of time points do not match')
-            else:
-                Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])
-
 
         try:
             add_to_fit = kwargs['add_to_fit']
@@ -184,10 +180,10 @@ class Funcoin:
 
         gamma_mat, beta_mat = self.__decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
 
-        self.__store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_equal = Ti_equal)
+        self.__store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
 
 
-    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
         
         Parameters:
@@ -230,7 +226,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, *kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
 
     def transform_timeseries(self, Y_dat):
         """Takes a list of time series data and transforms it with the gamma matrix from self.
@@ -801,7 +797,7 @@ class Funcoin:
 
     #Private methods
 
-    def __store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False):
+    def __store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, **kwargs):
         self.decomp_settings['max_comps'] = max_comps
         self.decomp_settings['gamma_init'] = gamma_init
         self.decomp_settings['rand_init'] = rand_init
@@ -811,6 +807,13 @@ class Funcoin:
         self.decomp_settings['trace_sol'] = trace_sol
         self.decomp_settings['seed_initial'] = seed_initial
         self.decomp_settings['betaLinReg'] = betaLinReg
+
+        try:
+            tol_shrinkage = kwargs['tol_shrinkage']
+        except:
+            pass
+        else:
+            self.decomp_settings['tol_shrinkage'] = tol_shrinkage
 
         isfit = self.isfitted()
 
@@ -889,9 +892,6 @@ class Funcoin:
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
-                    # best_llh_directions.append(best_llh)
-                    # best_beta_steps_all.append(best_beta_steps)
-                    # best_gamma_steps_all.append(best_gamma_steps)
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
                     return gamma_mat, beta_mat
 
@@ -900,9 +900,7 @@ class Funcoin:
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
-            # best_llh_directions.append(best_llh)
-            # best_beta_steps_all.append(best_beta_steps)
-            # best_gamma_steps_all.append(best_gamma_steps)
+
 
         return gamma_mat, beta_mat
 
@@ -1047,7 +1045,7 @@ class Funcoin:
 
         return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
 
-    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
+    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
@@ -1231,7 +1229,7 @@ class Funcoin:
 
         return Si_list_tilde
 
-    def __store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = []):
+    def __store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], **kwargs):
         self.__fitted = True
 
         self.gamma = gamma_mat
@@ -1249,10 +1247,15 @@ class Funcoin:
         model_pred_training = X_dat@beta_mat
         self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
 
+        Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])    
         w_io = not Ti_equal
 
-        dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        if FC_mode:
+            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
+        else:
+            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
         self.dfd_values_training = dfd_values_training
+
 
         if betaLinReg:
             beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
@@ -1261,6 +1264,14 @@ class Funcoin:
             self.beta_pvals = beta_pvals
             self.beta_tvals = beta_tvals
 
+        try:
+            mu = kwargs['mu']
+            rho = kwargs['rho']
+        except:
+            pass
+        else:
+            self.mu = mu
+            self.rho = rho
 
     def __sample_s2_coefficients(self, X_dat):
         #Only called after decomposing with betaLinReg=True
