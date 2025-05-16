@@ -1,6 +1,7 @@
 from .funcoin import Funcoin
 from . import funcoin_auxiliary as fca
 import numpy as np
+import warnings
 
 class FuncoinHD(Funcoin):
     """
@@ -192,20 +193,35 @@ class FuncoinHD(Funcoin):
 
             if i_dir == 0:
                 try:
-                    best_llh, best_beta, best_gamma, best_mu, best_rho = self.__first_directionHD(Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed = None, betaLinReg = True)
+                    _, best_beta, best_gamma, best_mu, best_rho = self.__first_directionHD(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
-
+                    mu_vec_new = best_mu
+                    rho_vec_new = best_rho
             else:
-                #call __kth_directionHD here
-                pass
+                try:
+                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_directionHD(Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                except:
+                    beta_mat = beta_mat_new
+                    gamma_mat = gamma_mat_new
+                    # best_llh_directions.append(best_llh)
+                    # best_beta_steps_all.append(best_beta_steps)
+                    # best_gamma_steps_all.append(best_gamma_steps)
+                    warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
+                    return gamma_mat, beta_mat
+                
 
-            
+            beta_mat = beta_mat_new
+            gamma_mat = gamma_mat_new
+            mu_vec = mu_vec_new
+            rho_vec = rho_vec_new
 
-    def __first_directionHD(self, Si_list, X_dat, Ti_list, gamma_init_used, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed = None, betaLinReg = True):
+        return beta_mat, gamma_mat, mu_vec, rho_vec
+
+    def __first_directionHD(self, Si_list, X_dat, Ti_list, gamma_init_used, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True):
 
         gammas_allinits = []
         betas_allinits = []
@@ -229,7 +245,7 @@ class FuncoinHD(Funcoin):
 
                 Si_star_list = self.__create_Si_star_list(mu_new, rho_new, Si_list)
                 
-                best_llh, best_beta, best_gamma, _, _, _, _, _, _, _, _ = super().__first_direction(Si_star_list, X_dat, Ti_list, gamma_init = gamma_old, max_iter = max_iter, tol = tol, trace_sol = trace_sol, seed = seed, betaLinReg = False)
+                best_llh, best_beta, best_gamma, _, _, _, _, _, _, _, _ = super().__first_direction(Si_star_list, X_dat, Ti_list, gamma_init = gamma_old, max_iter = max_iter, tol = tol, trace_sol = trace_sol, betaLinReg = False)
                 
                 rho_diff = np.abs(rho_new-rho_old)
                 mu_diff = np.abs(mu_new-mu_old)
@@ -261,20 +277,21 @@ class FuncoinHD(Funcoin):
 
         return best_llh, best_beta, best_gamma, best_mu, best_rho
 
-    def __kth_directionHD(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init=False, max_iter=1000, tol=1e-4, trace_sol=0, seed=None, betaLinReg=False, FC_mode=False, Ti_list=..., ddof=0):
+    def __kth_directionHD(self, Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec,  gamma_init=False, max_iter=1000, tol=1e-4, trace_sol=0, betaLinReg=False, FC_mode=False, Ti_list=..., ddof=0):
         if FC_mode == False:
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-
-            Si_list_tilde = self.__make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            Si_list_tilde = super().__make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
         else:
-            Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+            Si_list_tilde = super().__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
+        best_llh, best_beta, best_gamma, best_mu, best_rho = self.__first_directionHD(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
+        mu_vec_new = np.append(mu_vec, best_mu)
+        rho_vec_new = np.append(rho_vec, best_rho)
 
-        return beta_mat_new, gamma_mat_new, best_llh, best_beta_steps, best_gamma_steps
+        return beta_mat_new, gamma_mat_new, best_llh, mu_vec_new, rho_vec_new
 
         
     def __calc_shrinkage_parameters(self, X_dat, gamma_vec, beta_vec, Si_list, Ti_list):

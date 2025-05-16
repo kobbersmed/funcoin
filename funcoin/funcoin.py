@@ -877,18 +877,15 @@ class Funcoin:
 
             if i == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
+                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
             else:
-
-                if seed:
-                    seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
@@ -897,6 +894,9 @@ class Funcoin:
                     # best_gamma_steps_all.append(best_gamma_steps)
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
                     return gamma_mat, beta_mat
+
+            if seed:
+                seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
@@ -907,7 +907,7 @@ class Funcoin:
         return gamma_mat, beta_mat
 
 
-    def __first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, seed = None, betaLinReg = False):        
+    def __first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
@@ -1047,7 +1047,7 @@ class Funcoin:
 
         return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
 
-    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, max_iter=1000, tol = 1e-4, trace_sol = 0, seed = None, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
+    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
@@ -1060,7 +1060,7 @@ class Funcoin:
         else:
             Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
+        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
@@ -1200,16 +1200,21 @@ class Funcoin:
         n_loop = n_subj // n_chunk
         n_rest = n_subj % n_chunk
 
-        Si_list_tilde = []
-        for k in range(n_loop):
-            Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(k*n_chunk):((k+1)*n_chunk)], gamma_mat, beta_mat)
-            Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-            Si_list_tilde.extend(Si_list_tilde_chunk)
+        Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
+        FC_list = [np.cov(Y_dat[i], rowvar=False) for i in range(len(Y_dat))]
 
-        if n_rest > 0:
-            Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(n_loop*n_chunk):], gamma_mat, beta_mat)
-            Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-            Si_list_tilde.extend(Si_list_tilde_chunk)
+        Si_list_tilde = self.__make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
+
+        # Si_list_tilde = []
+        # for k in range(n_loop):
+        #     Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(k*n_chunk):((k+1)*n_chunk)], gamma_mat, beta_mat)
+        #     Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
+        #     Si_list_tilde.extend(Si_list_tilde_chunk)
+
+        # if n_rest > 0:
+        #     Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(n_loop*n_chunk):], gamma_mat, beta_mat)
+        #     Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
+        #     Si_list_tilde.extend(Si_list_tilde_chunk)
 
         return Si_list_tilde
     
