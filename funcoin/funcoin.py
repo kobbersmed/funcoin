@@ -424,7 +424,7 @@ class Funcoin:
                     if i3 == 0:
                         Si_list_sample = fca.make_Si_list(Y_sample)
                     else:
-                        Si_list_sample = self._make_Si_list_tilde(Y_sample, self.gamma[:,:i3], self.beta[:,:i3])
+                        Si_list_sample = Funcoin._make_Si_list_tilde(Y_sample, self.gamma[:,:i3], self.beta[:,:i3])
                 else:
                     Si_list_sample = fca.make_Si_list(Y_sample)
 
@@ -1054,9 +1054,9 @@ class Funcoin:
         if FC_mode == False:
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
 
-            Si_list_tilde = self._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
         else:
-            Si_list_tilde = self._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+            Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
         best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg)
         
@@ -1171,7 +1171,8 @@ class Funcoin:
         return dfd_proj
     
     def _make_Y_tilde_list(self, Y_dat, gamma_mat, beta_mat):
-        """Creates list of Y_tilde matrices to be used when identifying multiple components. These contain the data after removing the components already identified.
+        """Creates list of Y_tilde matrices, which are time series data after removal of already identified components.
+        Not used anymore in the fitting routine.
         """
 
         num_gammas = gamma_mat.shape[1]
@@ -1191,7 +1192,8 @@ class Funcoin:
 
         return Ytilde_mats
 
-    def _make_Si_list_tilde(self, Y_dat, gamma_mat, beta_mat):
+    @staticmethod
+    def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
         
         n_chunk = 500
         n_subj = len(Y_dat)
@@ -1201,7 +1203,7 @@ class Funcoin:
         Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
         FC_list = [np.cov(Y_dat[i], rowvar=False) for i in range(len(Y_dat))]
 
-        Si_list_tilde = self._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
+        Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
 
         # Si_list_tilde = []
         # for k in range(n_loop):
@@ -1216,7 +1218,8 @@ class Funcoin:
 
         return Si_list_tilde
     
-    def _make_Si_list_tilde_fromFC(self, FC_list, gamma_mat, beta_mat, Ti_list, ddof):
+    @staticmethod
+    def _make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof):
 
         Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
 

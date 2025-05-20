@@ -162,7 +162,7 @@ class FuncoinHD(Funcoin):
 
         super()._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, tol_shrinkage = tol_shrinkage)
 
-        beta_mat, gamma_mat, mu_vec, rho_vec = self._decompositionHD(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = False, Ti_list=[], ddof = 0)
+        beta_mat, gamma_mat, mu_vec, rho_vec = self._decompositionHD(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = True, Ti_list=Ti_list, ddof = ddof)
        
         super()._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, mu=mu_vec, rho = rho_vec)
 
@@ -219,7 +219,7 @@ class FuncoinHD(Funcoin):
 
 
 
-    def calc_shrinked_FC_from_FC(self, FC_list):
+    def calc_shrunk_FC_from_FC(self, FC_list):
         """Calculates the shrunk covariance matrices from time series using the fitted rho and mu values. The FC matrices needs to be calculated with ddof=0, with n degrees of freedom. 
 
         Parameters:
@@ -242,7 +242,7 @@ class FuncoinHD(Funcoin):
 
         return FC_shrinked
 
-    def calc_shrinked_FC_from_ts(self, Y_dat):
+    def calc_shrunk_FC_from_ts(self, Y_dat):
         """Calculates the shrunk covariance matrices from time series using the fitted rho and mu values. 
 
         Parameters:
@@ -282,7 +282,7 @@ class FuncoinHD(Funcoin):
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
-        shrunk_cov_matrices = self.calc_shrinked_FC_from_ts(Y_dat)
+        shrunk_cov_matrices = self.calc_shrunk_FC_from_ts(Y_dat)
 
         u_vals = np.log(np.array([np.diag(self.gamma.T@shrunk_cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
 
@@ -306,7 +306,7 @@ class FuncoinHD(Funcoin):
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
-        shrunk_cov_matrices = self.calc_shrinked_FC_from_FC(FC_list)
+        shrunk_cov_matrices = self.calc_shrunk_FC_from_FC(FC_list)
 
         u_vals = np.log(np.array([np.diag(self.gamma.T@shrunk_cov_matrices[i]@self.gamma) for i in range(len(FC_list))]))
 
@@ -317,8 +317,6 @@ class FuncoinHD(Funcoin):
 
     def _decompositionHD(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
         
-        n_subj = len(Y_dat)
-
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
             beta_mat = self.beta
@@ -356,15 +354,15 @@ class FuncoinHD(Funcoin):
                     rho_vec_new = best_rho
             else:
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self._kth_directionHD(Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                    beta_mat_new, gamma_mat_new, _, mu_vec_new, rho_vec_new = self._kth_directionHD(Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
-                    # best_llh_directions.append(best_llh)
-                    # best_beta_steps_all.append(best_beta_steps)
-                    # best_gamma_steps_all.append(best_gamma_steps)
+                    mu_vec = mu_vec_new
+                    rho_vec = rho_vec_new
+                    
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
-                    return gamma_mat, beta_mat
+                    return gamma_mat, beta_mat, mu_vec, rho_vec
                 
 
             beta_mat = beta_mat_new
@@ -396,9 +394,9 @@ class FuncoinHD(Funcoin):
 
             while (step_ind<max_iter) and (shrink_diff > tol_shrinkage):
                 
-                mu_new, rho_new = self._calc_shrinkage_parameters(X_dat, gamma_old, beta_old, Si_list, Ti_list)
+                mu_new, rho_new = FuncoinHD._calc_shrinkage_parameters(X_dat, gamma_old, beta_old, Si_list, Ti_list)
 
-                Si_star_list = self._create_Si_star_list(mu_new, rho_new, Si_list)
+                Si_star_list = FuncoinHD._create_Si_star_list(mu_new, rho_new, Si_list)
                 
                 best_llh, best_beta, best_gamma, _, _, _, _, _, _, _, _ = super()._first_direction(Si_star_list, X_dat, Ti_list, gamma_init = gamma_old, max_iter = max_iter, tol = tol, trace_sol = trace_sol, betaLinReg = False)
                 
@@ -426,17 +424,17 @@ class FuncoinHD(Funcoin):
         best_llh = llh_allinits[best_llh_ind]
         best_gamma = gammas_allinits[best_llh_ind]
         best_beta = betas_allinits[best_llh_ind]
-        best_rho = mu_allinits[best_llh_ind]
-        best_mu = rho_allinits[best_llh_ind]
+        best_mu = mu_allinits[best_llh_ind]
+        best_rho = rho_allinits[best_llh_ind]
 
         return best_llh, best_beta, best_gamma, best_mu, best_rho
 
     def _kth_directionHD(self, Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec,  gamma_init=False, max_iter=1000, tol=1e-4, trace_sol=0, betaLinReg=False, FC_mode=False, Ti_list=..., ddof=0):
         if FC_mode == False:
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-            Si_list_tilde = super()._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
         else:
-            Si_list_tilde = super()._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+            Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
         best_llh, best_beta, best_gamma, best_mu, best_rho = self._first_directionHD(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True)
         
@@ -447,7 +445,8 @@ class FuncoinHD(Funcoin):
 
         return beta_mat_new, gamma_mat_new, best_llh, mu_vec_new, rho_vec_new
   
-    def _calc_shrinkage_parameters(self, X_dat, gamma_vec, beta_vec, Si_list, Ti_list):
+    @staticmethod
+    def _calc_shrinkage_parameters(X_dat, gamma_vec, beta_vec, Si_list, Ti_list):
         n_subj = X_dat.shape[0]
         Xi_list = fca.make_Xi_list(X_dat)
         exp_xi_beta_array = np.array([Xi_list[i].T@np.exp(beta_vec) for i in range(n_subj)]) 
@@ -467,10 +466,10 @@ class FuncoinHD(Funcoin):
 
         rho = psihat_sq/deltahat_sq
         
-        
         return mu, rho
 
-    def _create_Si_star_list(self, mu, rho, Si_list):
+    @staticmethod
+    def _create_Si_star_list(mu, rho, Si_list):
         p_model = Si_list[0].shape[0]
         Si_star_list = [rho*mu*np.identity(p_model)+(1-rho)*Si_list[i] for i in range(len(Si_list))]
 
