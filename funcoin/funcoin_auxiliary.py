@@ -2,7 +2,7 @@ import numpy as np
 import warnings
 
 def calc_covmatrix_listtolist(Y_dat, ddof=0):
-    """Calculates the Pearson correlation matrix, which is used to find the transformed data in the FUNCOIN class method transform_timeseries.
+    """Calculates the covariance matrix, which is used to find the transformed data in the FUNCOIN class method transform_timeseries.
     In the FUNCOIN model, time series data is standardized (mean 0, variance 1) and the covariance matrix with n degrees of freedom is computed,
     which is equivalent.
     
