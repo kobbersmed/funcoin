@@ -24,7 +24,7 @@ class FuncoinHD(Funcoin):
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
     gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
-    __fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    _fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
     def __init__(self, gamma=False, beta=False):
@@ -95,7 +95,8 @@ class FuncoinHD(Funcoin):
 
         beta_mat, gamma_mat, mu_vec, rho_vec = self._decompositionHD(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = False, Ti_list=[], ddof = 0)
         
-        super()._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = [], mu=mu_vec, rho=rho_vec)
+        super()._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list=[], HD_mode=True)
+        self._store_fitresult_HD(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = [], mu=mu_vec, rho = rho_vec)
 
     def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition for high dimensional FC matrices given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
@@ -163,8 +164,8 @@ class FuncoinHD(Funcoin):
         super()._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, tol_shrinkage = tol_shrinkage)
 
         beta_mat, gamma_mat, mu_vec, rho_vec = self._decompositionHD(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = True, Ti_list=Ti_list, ddof = ddof)
-       
-        super()._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, mu=mu_vec, rho = rho_vec)
+        super()._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, HD_mode=True)
+        self._store_fitresult_HD(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, mu=mu_vec, rho = rho_vec)
 
 
     def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
@@ -263,8 +264,7 @@ class FuncoinHD(Funcoin):
 
         return FC_shrinked
     
-
-    def transform_timeseries(self, Y_dat):
+    def transform_timeseries_HD(self, Y_dat):
         """Takes a list of time series data and transforms it with the fitted gamma matrix, rho, and mu from self.
 
         Parameters:
@@ -288,7 +288,7 @@ class FuncoinHD(Funcoin):
 
         return u_vals
 
-    def transform_FC(self, FC_list):
+    def transform_FC_HD(self, FC_list):
         """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self. The FC matrices needs to be calculated with ddof=0, with n degrees of freedom. 
 
         Parameters:
@@ -312,7 +312,6 @@ class FuncoinHD(Funcoin):
 
         return u_vals
     
-
     #Private/protected methods
 
     def _decompositionHD(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage = 1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
@@ -348,6 +347,7 @@ class FuncoinHD(Funcoin):
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
+                    self._fitted = True
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
                     mu_vec_new = best_mu
@@ -362,7 +362,7 @@ class FuncoinHD(Funcoin):
                     rho_vec = rho_vec_new
                     
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
-                    return gamma_mat, beta_mat, mu_vec, rho_vec
+                    return beta_mat, gamma_mat, mu_vec, rho_vec
                 
 
             beta_mat = beta_mat_new
@@ -432,11 +432,11 @@ class FuncoinHD(Funcoin):
     def _kth_directionHD(self, Y_dat, X_dat, beta_mat, gamma_mat, mu_vec, rho_vec,  gamma_init=False, max_iter=1000, tol=1e-4, trace_sol=0, betaLinReg=False, FC_mode=False, Ti_list=..., ddof=0):
         if FC_mode == False:
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-            Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            Si_list_new = FuncoinHD.make_Si_remove_component_from_ts(Y_dat, gamma_mat)
         else:
-            Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+            Si_list_new = FuncoinHD.make_Si_remove_component_from_FC(Y_dat, gamma_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, best_mu, best_rho = self._first_directionHD(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True)
+        best_llh, best_beta, best_gamma, best_mu, best_rho = self._first_directionHD(Si_list_new, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, tol_shrinkage = 1e-4, trace_sol = 0, betaLinReg = True)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
@@ -444,7 +444,58 @@ class FuncoinHD(Funcoin):
         rho_vec_new = np.append(rho_vec, best_rho)
 
         return beta_mat_new, gamma_mat_new, best_llh, mu_vec_new, rho_vec_new
-  
+
+    def _store_fitresult_HD(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], mu=float('nan'), rho=float('nan')):
+
+        if not FC_mode:
+            u_vals_training = self.transform_timeseries_HD(self, Y_dat)
+            Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
+        else:
+            u_vals_training = self.transform_FC_HD(Y_dat)
+
+        self.u_training = u_vals_training
+        model_pred_training = X_dat@beta_mat
+        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
+        
+
+
+        Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])    
+        w_io = not Ti_equal
+
+        if FC_mode:
+            dfd_values_training = super().calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
+        else:
+            dfd_values_training = super().calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        self.dfd_values_training = dfd_values_training
+
+
+        self.mu = mu
+        self.rho = rho
+
+
+    @staticmethod
+    def make_Si_remove_component_from_FC(FC_list, gamma_mat, Ti_list, ddof):
+        Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
+
+
+        gamma_prod = gamma_mat@gamma_mat.T
+
+        Si_list_new = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+                        gamma_prod@Si_list[i]@gamma_prod) for i in range(len(FC_list))]
+
+        return Si_list_new
+
+    @staticmethod
+    def make_Si_remove_component_from_ts(Y_dat, gamma_mat):
+
+        Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
+        FC_list = [np.cov(Y_dat[i], rowvar=False, ddof=0) for i in range(len(Y_dat))]
+
+        Si_list_new = FuncoinHD.make_Si_remove_component_from_FC(FC_list, gamma_mat, Ti_list, ddof=0)
+
+        return Si_list_new
+
     @staticmethod
     def _calc_shrinkage_parameters(X_dat, gamma_vec, beta_vec, Si_list, Ti_list):
         n_subj = X_dat.shape[0]
@@ -452,7 +503,7 @@ class FuncoinHD(Funcoin):
         exp_xi_beta_array = np.array([Xi_list[i].T@np.exp(beta_vec) for i in range(n_subj)]) 
         exp_x_beta_sum = np.sum(exp_xi_beta_array)
 
-        transf_Si_array = np.array([gamma_vec.T@Si_list[i]@gamma_vec for i in range(n_subj)])
+        transf_Si_array = np.array([gamma_vec.T@(Si_list[i]/Ti_list[i])@gamma_vec for i in range(n_subj)])
 
         mu = (1/(n_subj * (gamma_vec.T@gamma_vec)))*exp_x_beta_sum
         # phi_i_sq = np.array([mu*(gamma_vec.T@gamma_vec)-exp_xi_beta_array[i] for i in range(len(Xi_list))])**2
@@ -461,7 +512,7 @@ class FuncoinHD(Funcoin):
         deltahat_i_sq = np.array([transf_Si_array[i]-mu*(gamma_vec.T@gamma_vec) for i in range(n_subj)])**2
         deltahat_sq = (1/n_subj)*np.sum(deltahat_i_sq)
 
-        psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        psihat_i_sq = np.array([(transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
         psihat_sq = (1/n_subj)*np.sum(np.array([np.minimum(psihat_i_sq[i], deltahat_i_sq[i]) for i in range(n_subj)]))
 
         rho = psihat_sq/deltahat_sq

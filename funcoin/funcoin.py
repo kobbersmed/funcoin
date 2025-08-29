@@ -35,11 +35,11 @@ class Funcoin:
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
     gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
-    __fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    _fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
     def __init__(self, gamma=False, beta=False):
-        """Constructs relevant instance variables as either False (__fitted), predefined (gamma or beta), or NaN (all others).
+        """Constructs relevant instance variables as either False (_fitted), predefined (gamma or beta), or NaN (all others).
         """
         self.gamma = gamma
         self.beta = beta
@@ -52,7 +52,7 @@ class Funcoin:
         self.decomp_settings = dict()
         self.gamma_steps_all = []
         self.beta_steps_all = []
-        self.__fitted = False
+        self._fitted = False
 
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
@@ -793,7 +793,7 @@ class Funcoin:
         """
         When called, checks if the model has been fitted and returns True of False
         """
-        return self.__fitted
+        return self._fitted
 
     #Private/protected methods
 
@@ -825,7 +825,7 @@ class Funcoin:
             warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
 
     def _create_fitstring(self):
-        if self.__fitted:
+        if self._fitted:
             fitstr = 'have been fitted.'
         else:
             fitstr = 'are predefined.'
@@ -884,6 +884,7 @@ class Funcoin:
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
+                    self._fitted = True
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
             else:
@@ -892,6 +893,7 @@ class Funcoin:
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
+                    
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
                     return gamma_mat, beta_mat
 
@@ -900,7 +902,7 @@ class Funcoin:
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
-
+            
 
         return gamma_mat, beta_mat
 
@@ -1194,27 +1196,11 @@ class Funcoin:
 
     @staticmethod
     def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
-        
-        n_chunk = 500
-        n_subj = len(Y_dat)
-        n_loop = n_subj // n_chunk
-        n_rest = n_subj % n_chunk
 
         Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
-        FC_list = [np.cov(Y_dat[i], rowvar=False) for i in range(len(Y_dat))]
+        FC_list = [np.cov(Y_dat[i], rowvar=False, ddof=0) for i in range(len(Y_dat))]
 
         Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
-
-        # Si_list_tilde = []
-        # for k in range(n_loop):
-        #     Ytilde_mats_chunk = self._make_Y_tilde_list(Y_dat[(k*n_chunk):((k+1)*n_chunk)], gamma_mat, beta_mat)
-        #     Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-        #     Si_list_tilde.extend(Si_list_tilde_chunk)
-
-        # if n_rest > 0:
-        #     Ytilde_mats_chunk = self._make_Y_tilde_list(Y_dat[(n_loop*n_chunk):], gamma_mat, beta_mat)
-        #     Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-        #     Si_list_tilde.extend(Si_list_tilde_chunk)
 
         return Si_list_tilde
     
@@ -1231,23 +1217,22 @@ class Funcoin:
 
         return Si_list_tilde
 
-    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], **kwargs):
-        self.__fitted = True
-
+    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False):
+        
         self.gamma = gamma_mat
         self.beta = beta_mat
 
-        if not FC_mode:
-            u_vals_training = self.transform_timeseries(Y_dat)
-            Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-            Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
-        else:
-            u_vals_training = self.transform_FC(Y_dat)
-        
-        self.u_training = u_vals_training
-
-        model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
+        if not HD_mode:
+            if not FC_mode:
+                u_vals_training = self.transform_timeseries(Y_dat)
+                Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+                Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
+            else:
+                u_vals_training = self.transform_FC(Y_dat)
+            
+            self.u_training = u_vals_training
+            model_pred_training = X_dat@beta_mat
+            self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
 
         Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])    
         w_io = not Ti_equal
@@ -1266,14 +1251,7 @@ class Funcoin:
             self.beta_pvals = beta_pvals
             self.beta_tvals = beta_tvals
 
-        try:
-            mu = kwargs['mu']
-            rho = kwargs['rho']
-        except:
-            pass
-        else:
-            self.mu = mu
-            self.rho = rho
+
 
     def _sample_s2_coefficients(self, X_dat):
         #Only called after decomposing with betaLinReg=True
