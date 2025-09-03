@@ -96,7 +96,7 @@ class FuncoinHD(Funcoin):
         beta_mat, gamma_mat, mu_vec, rho_vec = self._decompositionHD(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, FC_mode = False, Ti_list=[], ddof = 0)
         
         super()._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list=[], HD_mode=True)
-        self._store_fitresult_HD(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_equal = [], mu=mu_vec, rho = rho_vec)
+        self._store_fitresult_HD(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], mu=mu_vec, rho = rho_vec)
 
     def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, tol_shrinkage=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition for high dimensional FC matrices given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
@@ -450,7 +450,6 @@ class FuncoinHD(Funcoin):
         if not FC_mode:
             u_vals_training = self.transform_timeseries_HD(self, Y_dat)
             Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-            Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
         else:
             u_vals_training = self.transform_FC_HD(Y_dat)
 
