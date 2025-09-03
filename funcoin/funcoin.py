@@ -840,17 +840,6 @@ class Funcoin:
             laststr = f'gamma and beta ' + fitstr
 
         return laststr
-        
-    def _initialise_gamma(self, gamma_init, rand_init, p_model, n_init, seed):
-        
-
-        if type(gamma_init) == bool and not rand_init:
-            gamma_init = np.ones([p_model,1])
-        if rand_init:
-            gamma_init = self._random_initial_conds(p_model, n_init, seed=seed)
-
-
-        return gamma_init
 
     def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
 
@@ -876,7 +865,7 @@ class Funcoin:
         for i in range(n_dir_init,max_comps):
 
             p_model = Si_list[0].shape[0]
-            gamma_init_used = self._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
+            gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
 
             if i == 0:
                 try:
@@ -1113,11 +1102,8 @@ class Funcoin:
 
         return llh_value
 
-    def _random_initial_conds(self, p_model, n_init, seed=None):
-        rng = np.random.default_rng(seed=seed)
-        gamma_inits = rng.standard_normal([p_model,n_init])
 
-        return gamma_inits
+
 
     def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
         """
@@ -1194,29 +1180,6 @@ class Funcoin:
 
         return Ytilde_mats
 
-    @staticmethod
-    def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
-
-        Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
-        FC_list = [np.cov(Y_dat[i], rowvar=False, ddof=0) for i in range(len(Y_dat))]
-
-        Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
-
-        return Si_list_tilde
-    
-    @staticmethod
-    def _make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof):
-
-        Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
-
-
-        gamma_prod = gamma_mat@gamma_mat.T
-
-        Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-                        gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
-
-        return Si_list_tilde
-
     def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False):
         
         self.gamma = gamma_mat
@@ -1264,9 +1227,49 @@ class Funcoin:
             s2[i] = np.dot(u_residuals[:,i],u_residuals[:,i])/(X_dat.shape[0]-X_dat.shape[1])
 
         return s2
+
+    @staticmethod
+    def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
+
+        Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
+        FC_list = [np.cov(Y_dat[i], rowvar=False, ddof=0) for i in range(len(Y_dat))]
+
+        Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
+
+        return Si_list_tilde
     
+    @staticmethod
+    def _make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof):
+
+        Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
+
+
+        gamma_prod = gamma_mat@gamma_mat.T
+
+        Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+                        gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
+
+        return Si_list_tilde
+
     @staticmethod
     def _calc_Qinv(X_dat):
         Q_mat = X_dat.T@X_dat
         Q_inv = np.linalg.inv(Q_mat)
         return Q_inv
+
+    @staticmethod
+    def _initialise_gamma(gamma_init, rand_init, p_model, n_init, seed):
+        
+        if type(gamma_init) == bool and not rand_init:
+            gamma_init = np.ones([p_model,1])
+        if rand_init:
+            gamma_init = Funcoin._random_initial_conds(p_model, n_init, seed=seed)
+
+        return gamma_init
+
+    @staticmethod
+    def _random_initial_conds(p_model, n_init, seed=None):
+        rng = np.random.default_rng(seed=seed)
+        gamma_inits = rng.standard_normal([p_model,n_init])
+
+        return gamma_inits

@@ -339,7 +339,7 @@ class FuncoinHD(Funcoin):
 
         for i_dir in range(n_dir_init,max_comps):
             
-            gamma_init_used = super()._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
+            gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
 
             if i_dir == 0:
                 try:
@@ -396,7 +396,7 @@ class FuncoinHD(Funcoin):
                 
                 mu_new, rho_new = FuncoinHD._calc_shrinkage_parameters(X_dat, gamma_old, beta_old, Si_list, Ti_list)
 
-                Si_star_list = FuncoinHD._create_Si_star_list(mu_new, rho_new, Si_list)
+                Si_star_list = FuncoinHD._create_Si_star_list(mu_new, rho_new, Si_list, Ti_list)
                 
                 best_llh, best_beta, best_gamma, _, _, _, _, _, _, _, _ = super()._first_direction(Si_star_list, X_dat, Ti_list, gamma_init = gamma_old, max_iter = max_iter, tol = tol, trace_sol = trace_sol, betaLinReg = False)
                 
@@ -512,7 +512,8 @@ class FuncoinHD(Funcoin):
         deltahat_i_sq = np.array([transf_Si_array[i]-mu*(gamma_vec.T@gamma_vec) for i in range(n_subj)])**2
         deltahat_sq = (1/n_subj)*np.sum(deltahat_i_sq)
 
-        psihat_i_sq = np.array([(transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        # psihat_i_sq = np.array([ (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
         psihat_sq = (1/n_subj)*np.sum(np.array([np.minimum(psihat_i_sq[i], deltahat_i_sq[i]) for i in range(n_subj)]))
 
         rho = psihat_sq/deltahat_sq
@@ -520,9 +521,9 @@ class FuncoinHD(Funcoin):
         return mu, rho
 
     @staticmethod
-    def _create_Si_star_list(mu, rho, Si_list):
+    def _create_Si_star_list(mu, rho, Si_list, Ti_list):
         p_model = Si_list[0].shape[0]
-        Si_star_list = [rho*mu*np.identity(p_model)+(1-rho)*Si_list[i] for i in range(len(Si_list))]
+        Si_star_list = [(rho*mu*np.identity(p_model)+(1-rho)*Si_list[i]/Ti_list[i])*Ti_list[i] for i in range(len(Si_list))]
 
         return Si_star_list
     
