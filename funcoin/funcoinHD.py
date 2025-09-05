@@ -408,6 +408,7 @@ class FuncoinHD(Funcoin):
                 mu_old = mu_new
                 gamma_old = best_gamma
                 beta_old = best_beta
+                step_ind += 1
             
             if betaLinReg:
                 _, beta_new = super()._update_beta_LinReg(Si_star_list, X_dat, Ti_list, gamma_old)
@@ -499,7 +500,7 @@ class FuncoinHD(Funcoin):
     def _calc_shrinkage_parameters(X_dat, gamma_vec, beta_vec, Si_list, Ti_list):
         n_subj = X_dat.shape[0]
         Xi_list = fca.make_Xi_list(X_dat)
-        exp_xi_beta_array = np.array([Xi_list[i].T@np.exp(beta_vec) for i in range(n_subj)]) 
+        exp_xi_beta_array = np.array([np.exp(Xi_list[i].T@beta_vec) for i in range(n_subj)]) 
         exp_x_beta_sum = np.sum(exp_xi_beta_array)
 
         transf_Si_array = np.array([gamma_vec.T@(Si_list[i]/Ti_list[i])@gamma_vec for i in range(n_subj)])
@@ -511,8 +512,8 @@ class FuncoinHD(Funcoin):
         deltahat_i_sq = np.array([transf_Si_array[i]-mu*(gamma_vec.T@gamma_vec) for i in range(n_subj)])**2
         deltahat_sq = (1/n_subj)*np.sum(deltahat_i_sq)
 
-        psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
-        # psihat_i_sq = np.array([ (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        # psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        psihat_i_sq = np.array([(transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
         psihat_sq = (1/n_subj)*np.sum(np.array([np.minimum(psihat_i_sq[i], deltahat_i_sq[i]) for i in range(n_subj)]))
 
         rho = psihat_sq/deltahat_sq
