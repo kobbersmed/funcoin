@@ -216,11 +216,10 @@ class FuncoinHD(Funcoin):
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(self, Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, tol_shrinkage = tol_shrinkage, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
 
 
-
-    def calc_shrunk_FC_from_FC(self, FC_list):
+    def calc_shrunk_FC_from_FC(self, FC_list, proj_no):
         """Calculates the shrunk covariance matrices from time series using the fitted rho and mu values. The FC matrices needs to be calculated with ddof=0, with n degrees of freedom. 
 
         Parameters:
@@ -229,7 +228,7 @@ class FuncoinHD(Funcoin):
 
         Returns:
         --------
-        FC_shrinked: List of length n_subj. Element i is the shrunk covariance matrix of subject i.
+        FC_shrunk: List of length n_subj. Element i is the shrunk covariance matrix of subject i.
                    The shrunk covariance matrix for subject i is rho*mu*I + (1-rho)*FC_i, where FC_i is the sample covariance matrix of subject i, mu is the shrinkage target parameter, I is the p-by-p identity matrix, and rho is the shrinkage weight. 
         """
 
@@ -237,13 +236,11 @@ class FuncoinHD(Funcoin):
         rho = self.rho
         mu = self.mu
 
+        FC_shrunk = [rho[proj_no]*mu[proj_no]*np.identity(p_model)+(1-rho[proj_no])*FC_list[i] for i in range(len(FC_list))]
 
+        return FC_shrunk
 
-        FC_shrinked = [rho*mu*np.identity(p_model)+(1-rho)*FC_list[i] for i in range(len(FC_list))]
-
-        return FC_shrinked
-
-    def calc_shrunk_FC_from_ts(self, Y_dat):
+    def calc_shrunk_FC_from_ts(self, Y_dat, proj_no):
         """Calculates the shrunk covariance matrices from time series using the fitted rho and mu values. 
 
         Parameters:
@@ -252,24 +249,22 @@ class FuncoinHD(Funcoin):
 
         Returns:
         --------
-        FC_shrinked: List of length n_subj. Element i is the shrunk covariance matrix of subject i.
+        FC_shrunk: List of length n_subj. Element i is the shrunk covariance matrix of subject i.
                    The shrunk covariance matrix for subject i is rho*mu*I + (1-rho)*FC_i, where FC_i is the sample covariance matrix of subject i, mu is the shrinkage target parameter, I is the p-by-p identity matrix, and rho is the shrinkage weight. 
         """
 
-        rho = self.rho
-        mu = self.mu
         FC_mats = fca.calc_covmatrix_listtolist(Y_dat, ddof=0)
-        p_model = FC_mats[0].shape[0]
-        FC_shrinked = [rho*mu*np.identity(p_model)+(1-rho)*FC_mats[i] for i in range(len(FC_mats))]
+        FC_shrunk = self.calc_shrunk_FC_from_FC(FC_mats, proj_no)
 
-        return FC_shrinked
+        return FC_shrunk
     
-    def transform_timeseries_HD(self, Y_dat):
+    def transform_timeseries_shrunk(self, Y_dat, dirs = []):
         """Takes a list of time series data and transforms it with the fitted gamma matrix, rho, and mu from self.
 
         Parameters:
         ----------- 
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
 
         Returns:
         --------
@@ -281,20 +276,32 @@ class FuncoinHD(Funcoin):
 
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+        
+        if type(dirs)!=list:
+            dirs = [dirs]
 
-        shrunk_cov_matrices = self.calc_shrunk_FC_from_ts(Y_dat)
+        n_subj = len(Y_dat)
+        n_proj = self.gamma.shape[1]
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@shrunk_cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
+        if len(dirs)==0:
+            dirs = np.arange(n_proj)
+
+        u_vals = np.zeros([n_subj, n_proj])
+
+        for i in dirs:
+            shrunk_cov_matrices = self.calc_shrunk_FC_from_ts(Y_dat, i)
+            u_vals[:,i] = np.squeeze(super().transform_FC(shrunk_cov_matrices, dirs = i))
 
         return u_vals
 
-    def transform_FC_HD(self, FC_list):
+    def transform_FC_shrunk(self, FC_list, dirs = []):
         """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self. The FC matrices needs to be calculated with ddof=0, with n degrees of freedom. 
 
         Parameters:
         ----------- 
         corr_list: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
-        should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices). 
+        should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices).
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
 
         Returns:
         --------
@@ -305,10 +312,21 @@ class FuncoinHD(Funcoin):
 
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+        
+        if type(dirs)!=list:
+            dirs = [dirs]
 
-        shrunk_cov_matrices = self.calc_shrunk_FC_from_FC(FC_list)
+        n_subj = len(FC_list)
+        n_proj = self.gamma.shape[1]
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@shrunk_cov_matrices[i]@self.gamma) for i in range(len(FC_list))]))
+        if len(dirs)==0:
+            dirs = np.arange(n_proj)
+
+        u_vals = np.zeros([n_subj, n_proj])
+
+        for i in dirs:
+            shrunk_cov_matrices = self.calc_shrunk_FC_from_FC(FC_list, i)
+            u_vals[:,i] = np.squeeze(super().transform_FC(shrunk_cov_matrices, dirs = i))
 
         return u_vals
     
@@ -448,17 +466,18 @@ class FuncoinHD(Funcoin):
 
     def _store_fitresult_HD(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], mu=float('nan'), rho=float('nan')):
 
+        self.mu = mu
+        self.rho = rho
+
         if not FC_mode:
-            u_vals_training = self.transform_timeseries_HD(self, Y_dat)
-            Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            u_vals_training = self.transform_timeseries_shrunk(self, Y_dat)
+            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
         else:
-            u_vals_training = self.transform_FC_HD(Y_dat)
+            u_vals_training = self.transform_FC_shrunk(Y_dat)
 
         self.u_training = u_vals_training
         model_pred_training = X_dat@beta_mat
         self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
-        
-
 
         Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])    
         w_io = not Ti_equal
@@ -470,8 +489,7 @@ class FuncoinHD(Funcoin):
         self.dfd_values_training = dfd_values_training
 
 
-        self.mu = mu
-        self.rho = rho
+
 
 
     @staticmethod
@@ -512,8 +530,8 @@ class FuncoinHD(Funcoin):
         deltahat_i_sq = np.array([transf_Si_array[i]-mu*(gamma_vec.T@gamma_vec) for i in range(n_subj)])**2
         deltahat_sq = (1/n_subj)*np.sum(deltahat_i_sq)
 
-        # psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
-        psihat_i_sq = np.array([(transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        psihat_i_sq = np.array([(1/Ti_list[i]) * (transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
+        # psihat_i_sq = np.array([(transf_Si_array[i] - exp_xi_beta_array[i]) for i in range(n_subj)])**2
         psihat_sq = (1/n_subj)*np.sum(np.array([np.minimum(psihat_i_sq[i], deltahat_i_sq[i]) for i in range(n_subj)]))
 
         rho = psihat_sq/deltahat_sq

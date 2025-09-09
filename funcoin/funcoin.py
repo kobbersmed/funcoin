@@ -228,13 +228,14 @@ class Funcoin:
 
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
 
-    def transform_timeseries(self, Y_dat):
+    def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
-
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
+        
         Returns:
         --------
         u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
@@ -245,20 +246,29 @@ class Funcoin:
 
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+        
+        if type(dirs)!=list:
+            dirs = [dirs]
 
         cov_matrices = fca.calc_covmatrix_listtolist(Y_dat, ddof=0)
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
+        if len(dirs)==0:
+            gamma_here = self.gamma
+        else:
+            gamma_here = self.gamma[:,dirs]
+
+        u_vals = np.log(np.array([np.diag(gamma_here.T@cov_matrices[i]@gamma_here) for i in range(len(Y_dat))]))
 
         return u_vals
 
-    def transform_FC(self, corr_list):
+    def transform_FC(self, FC_mats, dirs = []):
         """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
-        corr_list: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
+        FC_mats: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
         should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices). 
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
 
         Returns:
         --------
@@ -270,7 +280,15 @@ class Funcoin:
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@corr_list[i]@self.gamma) for i in range(len(corr_list))]))
+        if type(dirs)!=list:
+            dirs = [dirs]
+
+        if len(dirs)==0:
+            gamma_here = self.gamma
+        else:
+            gamma_here = self.gamma[:,dirs]
+
+        u_vals = np.log(np.array([np.diag(gamma_here.T@FC_mats[i]@gamma_here) for i in range(len(FC_mats))]))
 
         return u_vals
     
