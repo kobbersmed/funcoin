@@ -35,11 +35,11 @@ class Funcoin:
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
     gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
-    __fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    _fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
     def __init__(self, gamma=False, beta=False):
-        """Constructs relevant instance variables as either False (__fitted), predefined (gamma or beta), or NaN (all others).
+        """Constructs relevant instance variables as either False (_fitted), predefined (gamma or beta), or NaN (all others).
         """
         self.gamma = gamma
         self.beta = beta
@@ -52,29 +52,17 @@ class Funcoin:
         self.decomp_settings = dict()
         self.gamma_steps_all = []
         self.beta_steps_all = []
-        self.__fitted = False
+        self._fitted = False
 
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
 
-        if self.__fitted:
-            fitstr = 'have been fitted.'
-        else:
-            fitstr = 'are predefined.'
-
-        if (self.gamma is False) and (self.beta is False):
-            laststr = f'Neither gamma nor beta are defined.'
-        elif (self.gamma is not False) and (self.beta is False):
-            laststr = f'gamma is predefined. beta is not defined.'
-        elif (self.gamma is False) and (self.beta is not False):
-            laststr = f'beta is predefined. gamma is not defined.'
-        elif (self.gamma is not False) and (self.beta is not False):
-            laststr = f'gamma and beta ' + fitstr
+        laststr = self._create_fitstring()
 
         return firststr + laststr
 
     #Public methods
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. 
         
         Parameters:
@@ -117,61 +105,19 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decomp_settings['max_comps'] = max_comps
-        self.decomp_settings['gamma_init'] = gamma_init
-        self.decomp_settings['rand_init'] = rand_init
-        self.decomp_settings['n_init'] = n_init
-        self.decomp_settings['max_iter'] = max_iter
-        self.decomp_settings['tol'] = tol
-        self.decomp_settings['trace_sol'] = trace_sol
-        self.decomp_settings['seed_initial'] = seed_initial
-        self.decomp_settings['betaLinReg'] = betaLinReg
-
-
-        isfit = self.isfitted()
-
         try:
             add_to_fit = kwargs['add_to_fit']
         except:
             add_to_fit = False
 
-        if isfit and not (overwrite_fit or add_to_fit):
-            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
-        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
-            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
-        if overwrite_fit and np.ndim(self.gamma)>0:
-            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
-        gamma_mat, beta_mat = self.__decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
+        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
 
-        self.__fitted = True
+        self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [])
 
-        self.gamma = gamma_mat
-        self.beta = beta_mat
-
-        u_vals_training = self.transform_timeseries(Y_dat)
-        self.u_training = u_vals_training
-
-        model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
-
-        Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-        Ti_equal = np.all([Ti_vec[i]==Ti_vec[0] for i in range(len(Ti_vec))])
-
-        w_io = not Ti_equal
-
-        dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
-        self.dfd_values_training = dfd_values_training
-
-        if betaLinReg:
-            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
-            self.beta_CI95_parametric = beta_CI95_parametric
-            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
-            self.beta_pvals = beta_pvals
-            self.beta_tvals = beta_tvals
-
-    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
-        """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, and covariate matrix, X_dat. 
+    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
+        """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
         
         Parameters:
         -----------
@@ -221,65 +167,23 @@ class Funcoin:
         if type(Ti_list) == int:
             Ti_val = Ti_list
             Ti_list = [Ti_val for i in range(len(FC_list))]
-            Ti_equal = True
         elif type(Ti_list) == list:
             if len(Ti_list)!=len(FC_list):
                 raise Exception('Length of list of FC matrices and list of number of time points do not match')
-            else:
-                Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])
-
-
-        self.decomp_settings['max_comps'] = max_comps
-        self.decomp_settings['gamma_init'] = gamma_init
-        self.decomp_settings['rand_init'] = rand_init
-        self.decomp_settings['n_init'] = n_init
-        self.decomp_settings['max_iter'] = max_iter
-        self.decomp_settings['tol'] = tol
-        self.decomp_settings['trace_sol'] = trace_sol
-        self.decomp_settings['seed_initial'] = seed_initial
-        self.decomp_settings['betaLinReg'] = betaLinReg
-
-
-        isfit = self.isfitted()
 
         try:
             add_to_fit = kwargs['add_to_fit']
         except:
             add_to_fit = False
 
-        if isfit and not (overwrite_fit or add_to_fit):
-            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
-        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
-            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
-        if overwrite_fit and np.ndim(self.gamma)>0:
-            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
 
-        gamma_mat, beta_mat = self.__decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
+        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
 
-        self.__fitted = True
+        self._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
 
-        self.gamma = gamma_mat
-        self.beta = beta_mat
 
-        u_vals_training = self.transform_FC(FC_list)
-        self.u_training = u_vals_training
-
-        model_pred_training = X_dat@beta_mat
-        self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
-
-        w_io = not Ti_equal
-
-        dfd_values_training = self.calc_dfd_values_FC(FC_list, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
-        self.dfd_values_training = dfd_values_training
-
-        if betaLinReg:
-            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
-            self.beta_CI95_parametric = beta_CI95_parametric
-            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
-            self.beta_pvals = beta_pvals
-            self.beta_tvals = beta_tvals
-
-    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, *kwargs):
+    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
         
         Parameters:
@@ -322,15 +226,16 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, *kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
 
-    def transform_timeseries(self, Y_dat):
+    def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
-
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
+        
         Returns:
         --------
         u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
@@ -341,20 +246,29 @@ class Funcoin:
 
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+        
+        if type(dirs)!=list:
+            dirs = [dirs]
 
-        cov_matrices = fca.calc_covmatrix_listtolist(Y_dat)
+        cov_matrices = fca.calc_covmatrix_listtolist(Y_dat, ddof=0)
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@cov_matrices[i]@self.gamma) for i in range(len(Y_dat))]))
+        if len(dirs)==0:
+            gamma_here = self.gamma
+        else:
+            gamma_here = self.gamma[:,dirs]
+
+        u_vals = np.log(np.array([np.diag(gamma_here.T@cov_matrices[i]@gamma_here) for i in range(len(Y_dat))]))
 
         return u_vals
 
-    def transform_FC(self, corr_list):
+    def transform_FC(self, FC_mats, dirs = []):
         """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self.
 
         Parameters:
         ----------- 
-        corr_list: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
+        FC_mats: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
         should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices). 
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
 
         Returns:
         --------
@@ -366,7 +280,15 @@ class Funcoin:
         if self.gamma is False:
             raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
-        u_vals = np.log(np.array([np.diag(self.gamma.T@corr_list[i]@self.gamma) for i in range(len(corr_list))]))
+        if type(dirs)!=list:
+            dirs = [dirs]
+
+        if len(dirs)==0:
+            gamma_here = self.gamma
+        else:
+            gamma_here = self.gamma[:,dirs]
+
+        u_vals = np.log(np.array([np.diag(gamma_here.T@FC_mats[i]@gamma_here) for i in range(len(FC_mats))]))
 
         return u_vals
     
@@ -520,18 +442,18 @@ class Funcoin:
                     if i3 == 0:
                         Si_list_sample = fca.make_Si_list(Y_sample)
                     else:
-                        Si_list_sample = self.__make_Si_list_tilde(Y_sample, self.gamma[:,:i3], self.beta[:,:i3])
+                        Si_list_sample = Funcoin._make_Si_list_tilde(Y_sample, self.gamma[:,:i3], self.beta[:,:i3])
                 else:
                     Si_list_sample = fca.make_Si_list(Y_sample)
 
 
                 try:
                     if betaLinReg:
-                        _, beta_new = self.__update_beta_LinReg(Si_list_sample, X_sample, Ti_list, gamma_init=self.gamma[:,i3])
+                        _, beta_new = self._update_beta_LinReg(Si_list_sample, X_sample, Ti_list, gamma_init=self.gamma[:,i3])
                     else:
                         beta_old = np.expand_dims(self.beta[:,i3],1)
                         gamma_old = np.expand_dims(self.gamma[:,i3],1)
-                        _, beta_new = self.__optimize_only_beta(Si_list_sample, X_sample, Ti_list, beta_init=beta_old, gamma_init=gamma_old, max_iter=max_iter, tol=tol)
+                        _, beta_new = self._optimize_only_beta(Si_list_sample, X_sample, Ti_list, beta_init=beta_old, gamma_init=gamma_old, max_iter=max_iter, tol=tol)
                 except:
                     beta_new = np.zeros(X_dat.shape[1])*np.nan
 
@@ -629,7 +551,7 @@ class Funcoin:
    
 
         n_dir = self.gamma.shape[1]
-        dfd_vals = [self.__deviation_from_diag(i, Y_dat, weighted_io, dfd_aritm, logtrick_io) for i in range(n_dir)]
+        dfd_vals = [self._deviation_from_diag(i, Y_dat, weighted_io, dfd_aritm, logtrick_io) for i in range(n_dir)]
         return dfd_vals
     
     def calc_dfd_values_ts(self, Y_dat, weighted_io=1, dfd_aritm = 0, logtrick_io = 1):
@@ -683,7 +605,7 @@ class Funcoin:
    
 
         n_dir = self.gamma.shape[1]
-        dfd_vals = [self.__deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list) for i in range(n_dir)]
+        dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list) for i in range(n_dir)]
         return dfd_vals
 
 
@@ -769,8 +691,8 @@ class Funcoin:
             if not self.decomp_settings['betaLinReg']:
                 raise Exception('Cannot compute parametric confidence intervals. Only valid when model is fitted with betaLinReg set to True.')
 
-        s2 = self.__sample_s2_coefficients(X_dat=X_dat)
-        Q_inv = self.__calc_Qinv(X_dat)
+        s2 = self._sample_s2_coefficients(X_dat=X_dat)
+        Q_inv = Funcoin._calc_Qinv(X_dat)
 
         CI_low_s2 = np.zeros_like(self.beta)
         CI_high_s2 = np.zeros_like(self.beta)
@@ -819,8 +741,8 @@ class Funcoin:
         if h0_beta is False:
             h0_beta = np.zeros_like(self.beta)
 
-        s2 = self.__sample_s2_coefficients(X_dat=X_dat)
-        Q_inv = self.__calc_Qinv(X_dat)
+        s2 = self._sample_s2_coefficients(X_dat=X_dat)
+        Q_inv = Funcoin._calc_Qinv(X_dat)
         
 
         beta_tvals = np.zeros_like(self.beta)
@@ -889,11 +811,55 @@ class Funcoin:
         """
         When called, checks if the model has been fitted and returns True of False
         """
-        return self.__fitted
+        return self._fitted
 
-    #Private methods
+    #Private/protected methods
 
-    def __decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
+    def _store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, **kwargs):
+        self.decomp_settings['max_comps'] = max_comps
+        self.decomp_settings['gamma_init'] = gamma_init
+        self.decomp_settings['rand_init'] = rand_init
+        self.decomp_settings['n_init'] = n_init
+        self.decomp_settings['max_iter'] = max_iter
+        self.decomp_settings['tol'] = tol
+        self.decomp_settings['trace_sol'] = trace_sol
+        self.decomp_settings['seed_initial'] = seed_initial
+        self.decomp_settings['betaLinReg'] = betaLinReg
+
+        try:
+            tol_shrinkage = kwargs['tol_shrinkage']
+        except:
+            pass
+        else:
+            self.decomp_settings['tol_shrinkage'] = tol_shrinkage
+
+        isfit = self.isfitted()
+
+        if isfit and not (overwrite_fit or add_to_fit):
+            raise Exception('Did not run the decomposition, because this FUNCOIN instance has already been fitted. If you want to overwrite existing fit, please specify overwrite_fit=True. If you want to add more projection directions to the existing fit, use the .add_projections method.')
+        if not isfit and np.ndim(self.gamma)>0 and not add_to_fit:
+            warnings.warn('Fitting FUNCOIN instance. Predefined gamma and beta will be overwritten.')
+        if overwrite_fit and np.ndim(self.gamma)>0:
+            warnings.warn('Running FUNCOIN decomposition. Overwriting existing fit.')
+
+    def _create_fitstring(self):
+        if self._fitted:
+            fitstr = 'have been fitted.'
+        else:
+            fitstr = 'are predefined.'
+
+        if (self.gamma is False) and (self.beta is False):
+            laststr = f'Neither gamma nor beta are defined.'
+        elif (self.gamma is not False) and (self.beta is False):
+            laststr = f'gamma is predefined. beta is not defined.'
+        elif (self.gamma is False) and (self.beta is not False):
+            laststr = f'beta is predefined. gamma is not defined.'
+        elif (self.gamma is not False) and (self.beta is not False):
+            laststr = f'gamma and beta ' + fitstr
+
+        return laststr
+
+    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
 
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
@@ -907,10 +873,6 @@ class Funcoin:
         else:
             n_dir_init = 0
 
-        best_llh_directions = []
-        best_beta_steps_all = []
-        best_gamma_steps_all = []
-
         if FC_mode == False:
             Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
@@ -920,52 +882,45 @@ class Funcoin:
 
         for i in range(n_dir_init,max_comps):
 
+            p_model = Si_list[0].shape[0]
+            gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
+
             if i == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter = max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg)
+                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
+                    self._fitted = True
                     beta_mat_new = best_beta
                     gamma_mat_new = best_gamma
             else:
-
-                if seed:
-                    seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self.__kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, rand_init, n_init = n_init, max_iter=max_iter, tol = tol, trace_sol=trace_sol, seed=seed, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                    beta_mat_new, gamma_mat_new, _, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
-                    # best_llh_directions.append(best_llh)
-                    # best_beta_steps_all.append(best_beta_steps)
-                    # best_gamma_steps_all.append(best_gamma_steps)
+                    
                     warnings.warn(f'Identified {gamma_mat.shape[1]} components ({max_comps} were requested).')
                     return gamma_mat, beta_mat
 
+            if seed:
+                seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
+
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
-            # best_llh_directions.append(best_llh)
-            # best_beta_steps_all.append(best_beta_steps)
-            # best_gamma_steps_all.append(best_gamma_steps)
+            
 
         return gamma_mat, beta_mat
 
 
-    def __first_direction(self, Si_list, X_dat, Ti_list, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol = 1e-4, trace_sol = False, seed = None, betaLinReg = False):        
+    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
 
-        p_model = Si_list[0].shape[0]
         q_model = X_dat.shape[1]
-
         beta_init = np.zeros([q_model,1])
-
-        if type(gamma_init) == bool and not rand_init:
-            gamma_init = np.ones([p_model,1])
-        if rand_init:
-            gamma_init = self.__random_initial_conds(p_model, n_init, seed=seed)
 
         Xi_list = fca.make_Xi_list(X_dat)
         Ti_list_arr = np.array(Ti_list)
@@ -991,9 +946,9 @@ class Funcoin:
         llh_steps_split_all = []
         llh_steps_beta_optim_all = []
 
-        n_init = min(n_init, gamma_init.shape[1])
+        n_init_used = gamma_init.shape[1]
 
-        for l in range(n_init):
+        for l in range(n_init_used):
 
             beta_old = beta_init
             gamma_old = np.expand_dims(gamma_init[:,l],1)
@@ -1003,8 +958,8 @@ class Funcoin:
 
             gamma_old = H_pow@gamma_old
 
-            llh_steps = [np.squeeze(self.__loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
-            llh_steps_split = [np.squeeze(self.__loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
+            llh_steps = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
+            llh_steps_split = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
             beta_steps = [beta_init]
             gamma_steps = [np.expand_dims(gamma_init[:,l],1)]
 
@@ -1030,7 +985,7 @@ class Funcoin:
                 beta_new = beta_old - part1@part2
 
 
-                llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
+                llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
 
                 #Update gamma
                 A_matlist_arr = np.array([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
@@ -1041,8 +996,8 @@ class Funcoin:
                 best_ind = np.argmin(eigvals)
 
                 gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
-                llh_steps_split.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
-                llh_steps.append(np.squeeze(self.__loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
+                llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
+                llh_steps.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
 
                 beta_steps.append(beta_new)
                 gamma_steps.append(gamma_new)
@@ -1060,9 +1015,9 @@ class Funcoin:
                 gamma_old = -gamma_old
 
             if betaLinReg:
-                llh_steps_beta_optim, beta_new = self.__update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old)
+                llh_steps_beta_optim, beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old)
             else:
-                llh_steps_beta_optim, beta_new = self.__optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
+                llh_steps_beta_optim, beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
         
             best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
@@ -1099,7 +1054,7 @@ class Funcoin:
 
         return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
 
-    def __kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed = None, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
+    def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
@@ -1108,21 +1063,21 @@ class Funcoin:
         if FC_mode == False:
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
 
-            Si_list_tilde = self.__make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
         else:
-            Si_list_tilde = self.__make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+            Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self.__first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed=seed, betaLinReg=betaLinReg)
+        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
 
         return beta_mat_new, gamma_mat_new, best_llh, best_beta_steps, best_gamma_steps
 
-    def __optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4):
+    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4):
 
         Xi_list = fca.make_Xi_list(X_dat)
-        llh_vals = [self.__loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
+        llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
 
         beta_old = beta_init
         gamma_cand = gamma_init
@@ -1140,22 +1095,22 @@ class Funcoin:
             beta_new = beta_old - part1@part2
             diff = np.max(abs(beta_old-beta_new))
             beta_old = beta_new
-            llh_vals.append(self.__loglikelihood(beta_new, gamma_cand, X_dat, Ti_list, Si_list))
+            llh_vals.append(self._loglikelihood(beta_new, gamma_cand, X_dat, Ti_list, Si_list))
             step_ind +=1
 
         return llh_vals, beta_new
 
-    def __update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init):
+    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init):
         sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
         Z_arr = np.squeeze(np.array([gamma_init.T@sigma_list[i]@gamma_init for i in range(len(sigma_list))]))
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
         beta_new = np.expand_dims(np.concatenate(([regmodel.intercept_], regmodel.coef_)),1)
-        llh_vals = [self.__loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
+        llh_vals = [self._loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
 
         return llh_vals, beta_new
 
 
-    def __loglikelihood(self, beta, gamma, X_dat, Ti_list, Si_list):
+    def _loglikelihood(self, beta, gamma, X_dat, Ti_list, Si_list):
         #Ignoring constants
         Xi_list = fca.make_Xi_list(X_dat)
 
@@ -1165,13 +1120,10 @@ class Funcoin:
 
         return llh_value
 
-    def __random_initial_conds(self, p_model, n_init, seed=None):
-        rng = np.random.default_rng(seed=seed)
-        gamma_inits = rng.standard_normal([p_model,n_init])
 
-        return gamma_inits
 
-    def __deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
+
+    def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
         
@@ -1224,8 +1176,9 @@ class Funcoin:
                 
         return dfd_proj
     
-    def __make_Y_tilde_list(self, Y_dat, gamma_mat, beta_mat):
-        """Creates list of Y_tilde matrices to be used when identifying multiple components. These contain the data after removing the components already identified.
+    def _make_Y_tilde_list(self, Y_dat, gamma_mat, beta_mat):
+        """Creates list of Y_tilde matrices, which are time series data after removal of already identified components.
+        Not used anymore in the fitting routine.
         """
 
         num_gammas = gamma_mat.shape[1]
@@ -1245,70 +1198,42 @@ class Funcoin:
 
         return Ytilde_mats
 
-    def __make_Si_list_tilde(self, Y_dat, gamma_mat, beta_mat):
+    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False):
         
-        n_chunk = 500
-        n_subj = len(Y_dat)
-        n_loop = n_subj // n_chunk
-        n_rest = n_subj % n_chunk
+        self.gamma = gamma_mat
+        self.beta = beta_mat
 
-        Si_list_tilde = []
-        for k in range(n_loop):
-            Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(k*n_chunk):((k+1)*n_chunk)], gamma_mat, beta_mat)
-            Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-            Si_list_tilde.extend(Si_list_tilde_chunk)
+        if not HD_mode:
+            if not FC_mode:
+                u_vals_training = self.transform_timeseries(Y_dat)
+                Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            else:
+                u_vals_training = self.transform_FC(Y_dat)
+            
+            self.u_training = u_vals_training
+            model_pred_training = X_dat@beta_mat
+            self.residual_std_train = np.std(u_vals_training-model_pred_training, axis=0, ddof = 1)
 
-        if n_rest > 0:
-            Ytilde_mats_chunk = self.__make_Y_tilde_list(Y_dat[(n_loop*n_chunk):], gamma_mat, beta_mat)
-            Si_list_tilde_chunk = fca.make_Si_list(Ytilde_mats_chunk)
-            Si_list_tilde.extend(Si_list_tilde_chunk)
+        Ti_equal = np.all([Ti_list[i]==Ti_list[0] for i in range(len(Ti_list))])    
+        w_io = not Ti_equal
 
-        return Si_list_tilde
-    
-    def __make_Si_list_tilde_fromFC(self, FC_list, gamma_mat, beta_mat, Ti_list, ddof):
-
-        num_gammas = gamma_mat.shape[1]
-        # p_model = FC_list[0].shape[0]
-
-        Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
-
-        # Si_hat_list_alt = [(Si_list[i] - gamma_mat@gamma_mat.T@Si_list[i] - Si_list[i]@gamma_mat@gamma_mat.T + 
-        #                 gamma_mat@gamma_mat.T@Si_list[i]@gamma_mat@gamma_mat.T) for i in range(len(FC_list))]
-     
-        gamma_prod = gamma_mat@gamma_mat.T
-        # _, eigvecs_gammaprod = np.linalg.eigh(gamma_prod)
-        # eigvecs_gammaprod_used = eigvecs_gammaprod[:,-num_gammas:]
-
-        Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-                        gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
-
-        # Si_list_tilde_flip = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,:])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
-        
-        # if num_gammas==3:
-        #     Si_list_tilde_perm = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
-        #                 gamma_prod@Si_list[i]@gamma_prod + eigvecs_gammaprod_used@np.diag(np.flip(np.exp(beta_mat[0,[0,2,1]])))@eigvecs_gammaprod_used.T) for i in range(len(FC_list))]
-
-        # Si_list_tilde_alt = []
-        # for i in range(len(Si_hat_list_alt)):
-        #     eigvals_hat, eigvecs_hat = np.linalg.eigh(Si_hat_list_alt[i])
-        #     eigvals_hat_sorted = np.flip(eigvals_hat)
-        #     eigvecs_hat_sorted = np.flip(eigvecs_hat, axis=1)
-        #     eigs_mod = eigvals_hat_sorted[:(p_model-num_gammas)]
-        #     eigs_mod = np.append(eigs_mod, np.exp(beta_mat[0,:]))
-        #     Dtilde_mat = np.diag(eigs_mod)
-        #     Si_list_tilde_alt.append(eigvecs_hat_sorted@Dtilde_mat@eigvecs_hat_sorted.T)
-
-        # print('HERE:')
-        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
-        # print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_flip[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
-        # if num_gammas==3:
-        #     print([np.all(np.abs(Si_list_tilde_alt[i]-Si_list_tilde_perm[i])<1e-4) for i in range(len(Si_list_tilde_alt))])
-
-        return Si_list_tilde
+        if FC_mode:
+            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
+        else:
+            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+        self.dfd_values_training = dfd_values_training
 
 
-    def __sample_s2_coefficients(self, X_dat):
+        if betaLinReg:
+            beta_CI95_parametric = self.CI_beta_parametric(X_dat=X_dat, CI_lvl=0.05)
+            self.beta_CI95_parametric = beta_CI95_parametric
+            beta_pvals, beta_tvals = self.ttest_beta(X_dat=X_dat, h0_beta=False)
+            self.beta_pvals = beta_pvals
+            self.beta_tvals = beta_tvals
+
+
+
+    def _sample_s2_coefficients(self, X_dat):
         #Only called after decomposing with betaLinReg=True
 
         u_pred = self.predict(X_dat=X_dat)
@@ -1319,8 +1244,49 @@ class Funcoin:
             s2[i] = np.dot(u_residuals[:,i],u_residuals[:,i])/(X_dat.shape[0]-X_dat.shape[1])
 
         return s2
+
+    @staticmethod
+    def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
+
+        Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Y_dat))])
+        FC_list = [np.cov(Y_dat[i], rowvar=False, ddof=0) for i in range(len(Y_dat))]
+
+        Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof=0)
+
+        return Si_list_tilde
     
-    def __calc_Qinv(self, X_dat):
+    @staticmethod
+    def _make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof):
+
+        Si_list = fca.make_Si_list_from_FC_list(FC_list, Ti_list, ddof)
+
+
+        gamma_prod = gamma_mat@gamma_mat.T
+
+        Si_list_tilde = [(Si_list[i] - gamma_prod@Si_list[i] - Si_list[i]@gamma_prod + 
+                        gamma_prod@Si_list[i]@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T) for i in range(len(FC_list))]
+
+        return Si_list_tilde
+
+    @staticmethod
+    def _calc_Qinv(X_dat):
         Q_mat = X_dat.T@X_dat
         Q_inv = np.linalg.inv(Q_mat)
         return Q_inv
+
+    @staticmethod
+    def _initialise_gamma(gamma_init, rand_init, p_model, n_init, seed):
+        
+        if type(gamma_init) == bool and not rand_init:
+            gamma_init = np.ones([p_model,1])
+        if rand_init:
+            gamma_init = Funcoin._random_initial_conds(p_model, n_init, seed=seed)
+
+        return gamma_init
+
+    @staticmethod
+    def _random_initial_conds(p_model, n_init, seed=None):
+        rng = np.random.default_rng(seed=seed)
+        gamma_inits = rng.standard_normal([p_model,n_init])
+
+        return gamma_inits
