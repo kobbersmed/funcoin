@@ -262,7 +262,7 @@ class Funcoin:
         return u_vals
 
     def transform_FC(self, FC_mats, dirs = []):
-        """Takes a list of covariance/correlation matrices and computes the u values.
+        """Takes a list of covariance/correlation matrices and computes the u values using the gamma matrix.
 
         Parameters:
         ----------- 
