@@ -229,7 +229,7 @@ class Funcoin:
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
 
     def transform_timeseries(self, Y_dat, dirs = []):
-        """Takes a list of time series data and transforms it with the gamma matrix from self.
+        """Takes a list of time series data and computes the u values using the gamma matrix.
 
         Parameters:
         ----------- 
@@ -262,17 +262,17 @@ class Funcoin:
         return u_vals
 
     def transform_FC(self, FC_mats, dirs = []):
-        """Takes a list of covariance/correlation matrices and transforms it with the gamma matrix from self.
+        """Takes a list of covariance/correlation matrices and computes the u values.
 
         Parameters:
         ----------- 
-        FC_mats: List of len n_subj containing covariance/correlation matrices, each of size (p, p). Elements 
+        FC_mats: List of length [number of subjects] containing covariance/correlation matrices, each of size (p, p). Elements 
         should be Pearson full correlation or covariance matrices with n degrees of freedom (population covariance matrices). 
         dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
 
         Returns:
         --------
-        u_vals: np.array of size (n_subj, n_dirs): The values obtained by, for each projection direction j, 
+        u_vals: np.array of size (n_subj, n_comps): The values obtained by, for each projection direction j, 
                    using the projection u_i = log(gamma_j.T@Sigma_i@gamma_j)
                    for each subject i.
         """
@@ -292,6 +292,34 @@ class Funcoin:
 
         return u_vals
     
+    def transform_to_components_timeseries(self, Y_dat, dirs=[]):
+        """Takes a list of time series data and computes time series of the identified components (gamma).
+
+        Parameters:
+        ----------- 
+        Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
+        dirs: Integer or list of integers indicating the indicces of the projections to be used for the transformation. If empty, all projections are used.
+        
+        Returns:
+        --------
+        ts_comp: List of length [number of subjects] containing the component time series of the components specified in dirs.
+        """        
+
+        if self.gamma is False:
+            raise Exception('Could not transform data, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
+
+        if type(dirs)!=list:
+            dirs = [dirs]
+
+        if len(dirs)==0:
+            gamma_here = self.gamma
+        else:
+            gamma_here = self.gamma[:,dirs]
+
+        ts_comps = [Y_dat[i]@gamma_here for i in range(len(Y_dat))]
+
+        return ts_comps
+
     def predict(self, X_dat):
         """Takes the feature matrix, X_dat, and predicts u values from the fitted model (i.e. using the coefficients in self.beta)
 
