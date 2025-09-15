@@ -22,10 +22,10 @@ def standardise_ts(Y_dat, standard_var=True):
 
     n_subj = len(Y_dat)
 
-    Y_demeaned = [Y_dat[i] - np.mean(Y_dat[i], axis=1) for i in range(n_subj)]
+    Y_demeaned = [Y_dat[i] - np.mean(Y_dat[i], axis=0) for i in range(n_subj)]
     
     if standard_var:
-        Y_stand = [Y_demeaned[i]/np.std(Y_demeaned[i], axis=1) for i in range(n_subj)]
+        Y_stand = [Y_demeaned[i]/np.std(Y_demeaned[i], axis=0) for i in range(n_subj)]
     else:
         Y_stand = Y_demeaned
 
