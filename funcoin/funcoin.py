@@ -963,11 +963,11 @@ class Funcoin:
             eigvals_new = 1/(np.sqrt(eigvalsH))
             H_pow = eigvecsH@np.diag(eigvals_new)@eigvecsH.T
         else:
-            U, D, Vh = np.linalg.svd(H_mat)
+            U_h, D_h, Vh_h = np.linalg.svd(H_mat)
             D_new = np.zeros(len(D_new))
-            D_nonzero = D_new[D>1e-12]
+            D_nonzero = D_new[D_h>1e-12]
             D_new[D_nonzero] =  1/np.sqrt(D_new[D_nonzero])
-            H_pow = U@np.diag(D_new)@Vh
+            H_pow = U_h@np.diag(D_new)@Vh_h
 
         best_gamma_all = []
         best_beta_all = []
@@ -1033,7 +1033,7 @@ class Funcoin:
                     U_hah, D_hah, Vh_hah = np.linalg.svd(HAH_mat)
                     nonzero_inds = D_hah>1e-12
                     best_ind = np.argmin(D_hah[nonzero_inds])
-                    gamma_new = np.expand_dims(H_pow @ U[:,best_ind],1)
+                    gamma_new = np.expand_dims(H_pow @ U_hah[:,best_ind],1)
 
 
                 llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
