@@ -965,7 +965,8 @@ class Funcoin:
         else:
             U_h, D_h, Vh_h = np.linalg.svd(H_mat)
             D_new = np.zeros(len(D_h))
-            nonsing_inds = D_h>1e-12
+            thr1 = np.max(D_h)*H_mat.shape[0]*1e-15
+            nonsing_inds = D_h>thr1
             D_nonzero = D_h[nonsing_inds]
             D_new[nonsing_inds] =  1/np.sqrt(D_nonzero)
             H_pow = U_h@np.diag(D_new)@Vh_h
@@ -1032,7 +1033,8 @@ class Funcoin:
                     gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
                 else:
                     U_hah, D_hah, Vh_hah = np.linalg.svd(HAH_mat)
-                    zero_inds = D_hah<1e-12
+                    thr2 = np.max(D_hah)*HAH_mat.shape[0]*1e-15
+                    zero_inds = D_hah<thr2
                     D_mod = D_hah.copy()
                     D_mod[zero_inds] = float('inf')
                     best_ind = np.argmin(D_mod)
