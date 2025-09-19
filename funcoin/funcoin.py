@@ -1007,7 +1007,7 @@ class Funcoin:
 
                     matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                     mat_for_inv = np.sum(matlist_arr, axis=0)
-                    part1 = np.linalg.inv(mat_for_inv)
+                    part1 = np.linalg.pinv(mat_for_inv)
 
                 except:
                     raise Exception('Singular matrix occured.')
@@ -1025,10 +1025,17 @@ class Funcoin:
                 A_mat = np.sum(A_matlist_arr, axis=0)
                 HAH_mat = H_pow @ A_mat @ H_pow
 
-                eigvals, eigvecs = np.linalg.eigh(HAH_mat)
-                best_ind = np.argmin(eigvals)
+                if not low_rank:
+                    eigvals, eigvecs = np.linalg.eigh(HAH_mat)
+                    best_ind = np.argmin(eigvals)
+                    gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
+                else:
+                    U_hah, D_hah, Vh_hah = np.linalg.svd(HAH_mat)
+                    nonzero_inds = D_hah>1e-12
+                    best_ind = np.argmin(D_hah[nonzero_inds])
+                    gamma_new = np.expand_dims(H_pow @ U[:,best_ind],1)
 
-                gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
+
                 llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
                 llh_steps.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
 
