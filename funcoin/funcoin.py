@@ -62,7 +62,7 @@ class Funcoin:
         return firststr + laststr
 
     #Public methods
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, **kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. 
         
         Parameters:
@@ -82,20 +82,25 @@ class Funcoin:
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
 
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -112,11 +117,11 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank = low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank)
+        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode,)
 
         self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [])
 
-    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, **kwargs):
+    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
         
         Parameters:
@@ -140,20 +145,25 @@ class Funcoin:
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
 
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -178,12 +188,12 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank=low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank)
+        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode)
 
         self._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
 
 
-    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, **kwargs):
+    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
         
         Parameters:
@@ -203,20 +213,25 @@ class Funcoin:
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
 
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -226,7 +241,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, **kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and computes the u values using the gamma matrix.
@@ -366,7 +381,7 @@ class Funcoin:
 
         return Z_scores
 
-    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False):
+    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False, low_rank = False,  silent_mode = False):
         """Performs FUNCOIN decomposition and bootstrapping of beta coefficients given covariate matrix, X_dat, and a list of time series data, Y_dat.
         To account for the case where the bootstrap sampling changes the order of the gammas identified, the gamma vectors of 
         the bootstrapped gammas are sorted consecutively to maximize the dot product with the gammas identified on the original dataset.
@@ -390,14 +405,19 @@ class Funcoin:
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         seed_bootstrap: Integer or None. If integer, this seeds the bootstrap sampling algorithm, thereby derermining the random bootstrap samples drawn.
-        
-        Returns:
+
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.                
+                
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
-        self.CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
+        beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
+        CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
         
         Raises:
         -------
@@ -406,7 +426,7 @@ class Funcoin:
                     variance have already been identified, in which case the gamma and beta already identified are kept.
         """
         
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, low_rank=low_rank, silent_mode=silent_mode)
 
         self.bootstrap_only(Y_dat, X_dat, n_samples, CI_lvl = CI_lvl, max_iter=max_iter, tol = tol, betaLinReg = betaLinReg, seed_bootstrap = seed_bootstrap)
 
@@ -427,13 +447,18 @@ class Funcoin:
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         seed_bootstrap: Integer or None. If integer, this seeds the bootstrap sampling algorithm, thereby derermining the random bootstrap samples drawn.
         
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI_bootstrap: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta matrix determined by bootstrapping.
-        self.CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
+        beta_CI_bootstrap: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta matrix determined by bootstrapping.
+        CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
         
         Raises:
         -------
@@ -514,10 +539,15 @@ class Funcoin:
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
        
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.gamma: The old self.gamma is overwritten by a new matrix where the newly identified gamma projections are added.
-        self.beta: The old self.beta is overwritten by a new matrix where the coefficients for the newly identified projections are added.
+        gamma: The newly identified gamma projections are added to the existing self.gamma.
+        beta: The newly identified beta coefficients are added to the existing self.beta.
 
         Raises:
         -------
