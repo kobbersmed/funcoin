@@ -966,9 +966,9 @@ class Funcoin:
             U_h, D_h, Vh_h = np.linalg.svd(H_mat)
             D_new = np.zeros(len(D_h))
             thr1 = np.max(D_h)*H_mat.shape[0]*1e-15
-            nonsign_inds = D_h>thr1
-            D_nonzero = D_h[nonsign_inds]
-            D_new[nonsign_inds] =  1/np.sqrt(D_nonzero)
+            nonsing_inds = D_h>thr1
+            D_nonzero = D_h[nonsing_inds]
+            D_new[nonsing_inds] =  1/np.sqrt(D_nonzero)
             H_pow = U_h@np.diag(D_new)@Vh_h
 
         best_gamma_all = []
