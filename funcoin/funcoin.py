@@ -35,7 +35,7 @@ class Funcoin:
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
     gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
-    _fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    _fitted: Boolean variable, which is False when a Funcoin instance is created and set to True if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
     def __init__(self, gamma=False, beta=False):
@@ -966,9 +966,9 @@ class Funcoin:
             U_h, D_h, Vh_h = np.linalg.svd(H_mat)
             D_new = np.zeros(len(D_h))
             thr1 = np.max(D_h)*H_mat.shape[0]*1e-15
-            nonsing_inds = D_h>thr1
-            D_nonzero = D_h[nonsing_inds]
-            D_new[nonsing_inds] =  1/np.sqrt(D_nonzero)
+            nonsign_inds = D_h>thr1
+            D_nonzero = D_h[nonsign_inds]
+            D_new[nonsign_inds] =  1/np.sqrt(D_nonzero)
             H_pow = U_h@np.diag(D_new)@Vh_h
 
         best_gamma_all = []
@@ -1032,7 +1032,7 @@ class Funcoin:
                     best_ind = np.argmin(eigvals)
                     gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
                 else:
-                    U_hah, D_hah, Vh_hah = np.linalg.svd(HAH_mat)
+                    U_hah, D_hah, _ = np.linalg.svd(HAH_mat)
                     thr2 = np.max(D_hah)*HAH_mat.shape[0]*1e-15
                     zero_inds = D_hah<thr2
                     D_mod = D_hah.copy()
