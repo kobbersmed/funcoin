@@ -34,8 +34,8 @@ class Funcoin:
     u_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values (u values) of the data the model was trained on.  
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
                     For details, see the docstring of the decompose method.
-    gamma_steps_all, beta_steps_all: List of length [no. of projections]. Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
-    _fitted: Private variable, which is False per default and set to True only if the model is fitted on data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
+    _fitted: Boolean variable, which is False when a Funcoin instance is created and set to True if the model is fitted to data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
     """
 
     def __init__(self, gamma=False, beta=False):
@@ -62,7 +62,7 @@ class Funcoin:
         return firststr + laststr
 
     #Public methods
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. 
         
         Parameters:
@@ -81,21 +81,30 @@ class Funcoin:
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+        low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
+                            If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
+        silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
+                            
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
 
-        Returns:
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -110,13 +119,13 @@ class Funcoin:
         except:
             add_to_fit = False
 
-        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
+        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank = low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit)
+        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode)
 
         self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [])
 
-    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
+    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, a covariate matrix, X_dat, and a list of the number of time points in the original time series data. 
         
         Parameters:
@@ -139,21 +148,30 @@ class Funcoin:
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+        low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
+                            If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
+        silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
+                   
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
 
-        Returns:
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -176,14 +194,14 @@ class Funcoin:
         except:
             add_to_fit = False
 
-        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit)
+        self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank=low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof)
+        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode)
 
         self._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
 
 
-    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, **kwargs):
+    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and covariate matrix, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
         
         Parameters:
@@ -202,21 +220,30 @@ class Funcoin:
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+        low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
+                            If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
+        silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
+                   
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
 
-        Returns:
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
-        self.u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
-        self.residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
-        self.beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
                         Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
-        self.beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
                         Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
-        self.beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
-        self.decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
                         
         Raises:
         -------
@@ -226,7 +253,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, **kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and computes the u values using the gamma matrix.
@@ -366,7 +393,7 @@ class Funcoin:
 
         return Z_scores
 
-    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False):
+    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False, low_rank = False,  silent_mode = False):
         """Performs FUNCOIN decomposition and bootstrapping of beta coefficients given covariate matrix, X_dat, and a list of time series data, Y_dat.
         To account for the case where the bootstrap sampling changes the order of the gammas identified, the gamma vectors of 
         the bootstrapped gammas are sorted consecutively to maximize the dot product with the gammas identified on the original dataset.
@@ -390,14 +417,30 @@ class Funcoin:
         seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         seed_bootstrap: Integer or None. If integer, this seeds the bootstrap sampling algorithm, thereby derermining the random bootstrap samples drawn.
-        
-        Returns:
+
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.                
+                
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
-        self.CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+        u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+        residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+        beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+        beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+                        Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+        beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+                        Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+        gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
+        decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
+        beta_CI_bootstrap = List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bound of the confidence interval of the gamma matrix determined by bootstrapping.
+        CI_lvl = Float. Must be between 0 and 1. The significance level used for the end points of the confidence interval. If not specified when calling the decompose_bootstrap method, the default value is 0.05.
         
         Raises:
         -------
@@ -406,12 +449,12 @@ class Funcoin:
                     variance have already been identified, in which case the gamma and beta already identified are kept.
         """
         
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, low_rank=low_rank, silent_mode=silent_mode)
 
-        self.bootstrap_only(Y_dat, X_dat, n_samples, CI_lvl = CI_lvl, max_iter=max_iter, tol = tol, betaLinReg = betaLinReg, seed_bootstrap = seed_bootstrap)
+        self.bootstrap_only(Y_dat, X_dat, n_samples, CI_lvl = CI_lvl, max_iter=max_iter, tol = tol, betaLinReg = betaLinReg, seed_bootstrap = seed_bootstrap, silent_mode=silent_mode)
 
 
-    def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True):
+    def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True, silent_mode = False):
         """Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the FUNCOIN instance self.gamma, self.beta) .
         
         Parameters:
@@ -427,13 +470,18 @@ class Funcoin:
         betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
         seed_bootstrap: Integer or None. If integer, this seeds the bootstrap sampling algorithm, thereby derermining the random bootstrap samples drawn.
         
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
-        self.gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
-        self.betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
-        self.beta_CI_bootstrap: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta matrix determined by bootstrapping.
-        self.CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
+        beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+        gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+        betas_bootstrap: List of length n_samples. Contains all beta matrices determined with bootstrapping.
+        beta_CI_bootstrap: List of length 2 containing matrices of size (q,n_dir), i.e. same size as self.beta. The elements of the two matrices in the list are the lower and upper bounds of the confidence interval of the beta matrix determined by bootstrapping.
+        CI_lvl: Float. Must be between 0 and 1. The significance level, i.e. resulting in a 1-CI_lvl confidence interval. Default value is 0.05.
         
         Raises:
         -------
@@ -457,6 +505,9 @@ class Funcoin:
         rng = np.random.default_rng(seed = seed_bootstrap)
         
         for i2 in range(n_samples):
+            if not silent_mode:
+                print(f'Fitting bootstrap sample {i2+1} out of {n_samples}.')
+
             beta_bootstrap = np.zeros((X_dat.shape[1],self.gamma.shape[1]))*np.nan
             sample_inds = rng.choice(n_subj, n_subj)
             Y_sample = [Y_dat[i] for i in sample_inds]
@@ -506,7 +557,7 @@ class Funcoin:
         self.CI_lvl_bootstrap = CI_lvl
 
     def add_projections(self, n_add, Y_dat, X_dat):
-        """Identifies projection direction in addition to the projections already found by fitting the FUNCOIN instance.
+        """Identifies projection directions in addition to the projections already found by fitting the FUNCOIN instance. The same fit settings are used as in the previously run fitting routine(s).
 
         Parameters:
         -----------
@@ -514,10 +565,15 @@ class Funcoin:
         Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series.
         X_dat: Array-like of shape (n_subjects, n_covariates+1). First column has to be ones (does not work without the intercept).
        
-        Returns:
+        Returns
+        -------
+        self : Funcoin
+            Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+        Attributes:
         --------
-        self.gamma: The old self.gamma is overwritten by a new matrix where the newly identified gamma projections are added.
-        self.beta: The old self.beta is overwritten by a new matrix where the coefficients for the newly identified projections are added.
+        gamma: The newly identified gamma projections are added to the existing self.gamma.
+        beta: The newly identified beta coefficients are added to the existing self.beta.
 
         Raises:
         -------
@@ -843,7 +899,7 @@ class Funcoin:
 
     #Private/protected methods
 
-    def _store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, **kwargs):
+    def _store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, low_rank=False, **kwargs):
         self.decomp_settings['max_comps'] = max_comps
         self.decomp_settings['gamma_init'] = gamma_init
         self.decomp_settings['rand_init'] = rand_init
@@ -853,6 +909,7 @@ class Funcoin:
         self.decomp_settings['trace_sol'] = trace_sol
         self.decomp_settings['seed_initial'] = seed_initial
         self.decomp_settings['betaLinReg'] = betaLinReg
+        self.decomp_settings['low_rank'] = low_rank
 
         try:
             tol_shrinkage = kwargs['tol_shrinkage']
@@ -887,7 +944,7 @@ class Funcoin:
 
         return laststr
 
-    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0):
+    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0, low_rank = False, silent_mode = False):
 
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
@@ -910,12 +967,15 @@ class Funcoin:
 
         for i in range(n_dir_init,max_comps):
 
+            if not silent_mode:
+                print(f'Identifying projection {i+1} out of at most {max_comps}')
+
             p_model = Si_list[0].shape[0]
             gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
 
             if i == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg)
+                    _, best_beta, best_gamma, _, _, _, _, _, _, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -924,7 +984,7 @@ class Funcoin:
                     gamma_mat_new = best_gamma
             else:
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof)
+                    beta_mat_new, gamma_mat_new, _, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
@@ -942,7 +1002,7 @@ class Funcoin:
         return gamma_mat, beta_mat
 
 
-    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False):        
+    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False, low_rank = False, silent_mode=False):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
@@ -957,12 +1017,19 @@ class Funcoin:
 
         H_mat = sigma_bar
 
-        eigvalsH, eigvecsH = np.linalg.eigh(H_mat)
-        eigvals_new = eigvalsH
-        eigvals_new = 1/(np.sqrt(eigvalsH))
-
-
-        H_pow = eigvecsH@np.diag(eigvals_new)@eigvecsH.T
+        if not low_rank:
+            eigvalsH, eigvecsH = np.linalg.eigh(H_mat)
+            eigvals_new = eigvalsH
+            eigvals_new = 1/(np.sqrt(eigvalsH))
+            H_pow = eigvecsH@np.diag(eigvals_new)@eigvecsH.T
+        else:
+            U_h, D_h, Vh_h = np.linalg.svd(H_mat)
+            D_new = np.zeros(len(D_h))
+            thr1 = np.max(D_h)*H_mat.shape[0]*1e-15
+            nonsing_inds = D_h>thr1
+            D_nonzero = D_h[nonsing_inds]
+            D_new[nonsing_inds] =  1/np.sqrt(D_nonzero)
+            H_pow = U_h@np.diag(D_new)@Vh_h
 
         best_gamma_all = []
         best_beta_all = []
@@ -977,6 +1044,8 @@ class Funcoin:
         n_init_used = gamma_init.shape[1]
 
         for l in range(n_init_used):
+            if not silent_mode:
+                print(f'Initial condition {l+1} out of {n_init_used}')
 
             beta_old = beta_init
             gamma_old = np.expand_dims(gamma_init[:,l],1)
@@ -1002,7 +1071,7 @@ class Funcoin:
 
                     matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                     mat_for_inv = np.sum(matlist_arr, axis=0)
-                    part1 = np.linalg.inv(mat_for_inv)
+                    part1 = np.linalg.pinv(mat_for_inv)
 
                 except:
                     raise Exception('Singular matrix occured.')
@@ -1020,10 +1089,20 @@ class Funcoin:
                 A_mat = np.sum(A_matlist_arr, axis=0)
                 HAH_mat = H_pow @ A_mat @ H_pow
 
-                eigvals, eigvecs = np.linalg.eigh(HAH_mat)
-                best_ind = np.argmin(eigvals)
+                if not low_rank:
+                    eigvals, eigvecs = np.linalg.eigh(HAH_mat)
+                    best_ind = np.argmin(eigvals)
+                    gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
+                else:
+                    U_hah, D_hah, _ = np.linalg.svd(HAH_mat)
+                    thr2 = np.max(D_hah)*HAH_mat.shape[0]*1e-15
+                    zero_inds = D_hah<thr2
+                    D_mod = D_hah.copy()
+                    D_mod[zero_inds] = float('inf')
+                    best_ind = np.argmin(D_mod)
+                    gamma_new = np.expand_dims(H_pow @ U_hah[:,best_ind],1)
 
-                gamma_new = np.expand_dims(H_pow @ eigvecs[:,best_ind],1)
+
                 llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
                 llh_steps.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
 
@@ -1033,10 +1112,15 @@ class Funcoin:
                 gamma_diff = np.max(np.squeeze(abs(gamma_old-gamma_new)))
                 beta_diff = np.max(np.squeeze(abs(beta_old-beta_new)))
                 diff = np.maximum(gamma_diff, beta_diff)
-                step_ind +=1
 
                 gamma_old = gamma_new
                 beta_old = beta_new
+
+                step_ind +=1
+
+            if step_ind>=max_iter:
+                warnings.warn('The fitting routine with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.')
+
 
             gamma_old = gamma_old/np.linalg.norm(gamma_old)
             if gamma_old[0] < 0:
@@ -1070,19 +1154,15 @@ class Funcoin:
         if trace_sol:
             best_gamma_steps = gamma_steps_all[best_llh_ind]
             best_beta_steps = beta_steps_all[best_llh_ind]
-            gsa = self.gamma_steps_all
-            bsa = self.beta_steps_all
-            gsa.append(gamma_steps_all)
-            bsa.append(beta_steps_all)
-            self.gamma_steps_all = gsa
-            self.beta_steps_all = bsa
+            self.gamma_steps_all.append(best_gamma_steps)
+            self.beta_steps_all.append(best_beta_steps)
         else:
             best_gamma_steps = float('NaN')
             best_beta_steps = float('NaN')
 
         return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
 
-    def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0):
+    def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0, low_rank = False, silent_mode=False):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
@@ -1095,7 +1175,7 @@ class Funcoin:
         else:
             Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
 
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg)
+        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
@@ -1126,6 +1206,9 @@ class Funcoin:
             llh_vals.append(self._loglikelihood(beta_new, gamma_cand, X_dat, Ti_list, Si_list))
             step_ind +=1
 
+        if step_ind>=max_iter:
+            warnings.warn('The final optimisation of beta with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.')
+
         return llh_vals, beta_new
 
     def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init):
@@ -1147,8 +1230,6 @@ class Funcoin:
         llh_value = (0.5 * np.sum(arr1) + 0.5 * np.sum(arr2))
 
         return llh_value
-
-
 
 
     def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
