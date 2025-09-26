@@ -899,7 +899,7 @@ class Funcoin:
 
     #Private/protected methods
 
-    def _store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, **kwargs):
+    def _store_decomposition_options(self, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, low_rank=False, **kwargs):
         self.decomp_settings['max_comps'] = max_comps
         self.decomp_settings['gamma_init'] = gamma_init
         self.decomp_settings['rand_init'] = rand_init
@@ -909,6 +909,7 @@ class Funcoin:
         self.decomp_settings['trace_sol'] = trace_sol
         self.decomp_settings['seed_initial'] = seed_initial
         self.decomp_settings['betaLinReg'] = betaLinReg
+        self.decomp_settings['low_rank'] = low_rank
 
         try:
             tol_shrinkage = kwargs['tol_shrinkage']
