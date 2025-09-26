@@ -13,6 +13,8 @@ from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
+from .temp_storage import TempStorage
+import time
 
 class Funcoin:
     """
@@ -52,8 +54,9 @@ class Funcoin:
         self.decomp_settings = dict()
         self.gamma_steps_all = []
         self.beta_steps_all = []
+        self.tempdata = None
         self._fitted = False
-
+        
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
 
@@ -896,6 +899,35 @@ class Funcoin:
         When called, checks if the model has been fitted and returns True of False
         """
         return self._fitted
+    
+    def add_data_FC(self, ID, FC):
+
+        if self.tempdata is None:
+            self.tempdata = TempStorage()
+            self.tempdata_type = 'FC'
+        
+        self.tempdata.save_FC(ID, FC)
+
+    def list_datafiles(self):
+        try:
+            filelist = self.tempdata.list_files()
+        except:
+            print('No temporary data files have been saved.')
+            filelist = []
+
+        return filelist
+
+
+
+    def return_all_attributes_dict(self):
+        """
+        Returns a dictionary of all attributes (gamma, beta, u_training, etc.) from the Funcoin instance. Any temporary data and associated info (e.g. temporary filepaths and data types) are not saved. 
+        """
+        dict_out = self.__dict__
+        dict_out.pop('tempdata', None)
+        dict_out.pop('tempdata_type', None)
+        
+        return dict_out
 
     #Private/protected methods
 
@@ -1068,11 +1100,9 @@ class Funcoin:
                 #Update beta
 
                 try:
-
                     matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                     mat_for_inv = np.sum(matlist_arr, axis=0)
                     part1 = np.linalg.pinv(mat_for_inv)
-
                 except:
                     raise Exception('Singular matrix occured.')
 
