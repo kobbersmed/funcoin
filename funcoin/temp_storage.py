@@ -1,8 +1,7 @@
 import tempfile
 import os
-import shutil
 import numpy as np
-import atexit
+import warnings
 
 class TempStorage:
     """Manages temporary files for large datasets."""
@@ -17,8 +16,18 @@ class TempStorage:
     def save_FC(self, name, array):
         """Save a FC matrix to a temporary file."""
         file_path = os.path.join(self._temp_dir, f"{name}.npy")
-        np.save(file_path, array)
-        self._files.append(file_path)
+
+        checkfile = os.path.isfile(file_path)
+
+        if not checkfile:
+            np.save(file_path, array)
+            self._files.append(file_path)
+        else:
+            file_path = None    
+            warn_str = f"The ID, \'{name}\', provided for temporarily saving data is already in use. To avoid overwriting, the data was not saved."      
+            print(warn_str)  
+            warnings.warn(warn_str, stacklevel=3)
+
         return file_path
 
     def load_FC(self, file_path):

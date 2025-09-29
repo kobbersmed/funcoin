@@ -14,7 +14,6 @@ from sklearn.linear_model import LinearRegression
 from . import funcoin_auxiliary as fca
 import importlib
 from .temp_storage import TempStorage
-import time
 
 class Funcoin:
     """
@@ -906,7 +905,7 @@ class Funcoin:
             self.tempdata = TempStorage()
             self.tempdata_type = 'FC'
         
-        self.tempdata.save_FC(ID, FC)
+        _ = self.tempdata.save_FC(ID, FC)
 
     def list_datafiles(self):
         try:
