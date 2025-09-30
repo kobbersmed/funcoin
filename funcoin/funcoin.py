@@ -53,6 +53,7 @@ class Funcoin:
         self.decomp_settings = dict()
         self.gamma_steps_all = []
         self.beta_steps_all = []
+        self.llh_vals = []
         self.tempdata = None
         self._fitted = False
         
@@ -615,11 +616,11 @@ class Funcoin:
 
                 try:
                     if betaLinReg:
-                        _, beta_new = self._update_beta_LinReg(Si_list_sample, X_sample, Ti_list, gamma_init=self.gamma[:,i3])
+                        beta_new = self._update_beta_LinReg(Si_list_sample, X_sample, Ti_list, gamma_init=self.gamma[:,i3])
                     else:
                         beta_old = np.expand_dims(self.beta[:,i3],1)
                         gamma_old = np.expand_dims(self.gamma[:,i3],1)
-                        _, beta_new = self._optimize_only_beta(Si_list_sample, X_sample, Ti_list, beta_init=beta_old, gamma_init=gamma_old, max_iter=max_iter, tol=tol)
+                        beta_new = self._optimize_only_beta(Si_list_sample, X_sample, Ti_list, beta_init=beta_old, gamma_init=gamma_old, max_iter=max_iter, tol=tol)
                 except:
                     beta_new = np.zeros(X_dat.shape[1])*np.nan
 
@@ -745,7 +746,6 @@ class Funcoin:
         Exception: If gamma matrix is not fitted nor predefined.
         """
 
-
         dfd_vals = self.calc_dfd_values(self, Y_dat, weighted_io, dfd_aritm, logtrick_io)
         return dfd_vals
 
@@ -772,8 +772,6 @@ class Funcoin:
 
         if self.gamma is False:
             raise Exception('DfD values could not be computed, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
-
-   
 
         n_dir = self.gamma.shape[1]
         dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list) for i in range(n_dir)]
@@ -1096,7 +1094,7 @@ class Funcoin:
 
             if i == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, _, _, _, _, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+                    _, best_beta, best_gamma, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -1105,7 +1103,7 @@ class Funcoin:
                     gamma_mat_new = best_gamma
             else:
                 try:
-                    beta_mat_new, gamma_mat_new, _, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+                    _, beta_mat_new, gamma_mat_new, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
                 except:
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
@@ -1170,9 +1168,9 @@ class Funcoin:
         if trace_sol:
             beta_steps_all = []
             gamma_steps_all = []
-        llh_steps_all = []
-        llh_steps_split_all = []
-        llh_steps_beta_optim_all = []
+        # llh_steps_all = []
+        # llh_steps_split_all = []
+        # llh_steps_beta_optim_all = []
 
         n_init_used = gamma_init.shape[1]
 
@@ -1188,8 +1186,9 @@ class Funcoin:
 
             gamma_old = H_pow@gamma_old
 
-            llh_steps = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
-            llh_steps_split = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
+            # llh_steps = []
+            # llh_steps = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
+            # llh_steps_split = [np.squeeze(self._loglikelihood(beta_old, gamma_old, X_dat, Ti_list, Si_list))]
             beta_steps = [beta_init]
             gamma_steps = [np.expand_dims(gamma_init[:,l],1)]
 
@@ -1259,7 +1258,6 @@ class Funcoin:
 
 
                 # llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
-                llh_steps.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
 
                 beta_steps.append(beta_new)
                 gamma_steps.append(gamma_new)
@@ -1274,7 +1272,21 @@ class Funcoin:
                 step_ind +=1
 
             if step_ind>=max_iter:
-                warnings.warn('The fitting routine with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.')
+                warnings.warn('The fitting routine with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.', stacklevel=4)
+
+            #Calculate llh for fitting result of this initial condition
+            if not stored_data:
+                best_llh_here = np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list))
+            else:
+                Xi_list = fca.make_Xi_list(X_dat)
+                file_list = self.tempdata.list_files()
+                llh_val_here = 0
+                for i5 in range(len(file_list)):
+                    FC_here = self.tempdata.load_FC(file_list[i5])
+                    Si_here = FC_here * Ti_list[i5]
+                    llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i5], Ti_list[i5], Si_here)
+                    llh_val_here += llh
+                best_llh_here = np.squeeze(llh_val_here)
 
 
             gamma_old = gamma_old/np.linalg.norm(gamma_old)
@@ -1282,11 +1294,11 @@ class Funcoin:
                 gamma_old = -gamma_old
 
             if betaLinReg:
-                llh_steps_beta_optim, beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old)
+                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old)
             else:
-                llh_steps_beta_optim, beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
+                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
         
-            best_llh_here = llh_steps[-1]
+            # best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
             best_beta_here = beta_new
 
@@ -1297,14 +1309,15 @@ class Funcoin:
                 beta_steps_all.append(beta_steps)
                 gamma_steps_all.append(gamma_steps)
                 
-            llh_steps_all.append(llh_steps)
-            llh_steps_split_all.append(llh_steps_split)
-            llh_steps_beta_optim_all.append(llh_steps_beta_optim)
+            # llh_steps_all.append(llh_steps)
+            # llh_steps_split_all.append(llh_steps_split)
+            # llh_steps_beta_optim_all.append(llh_steps_beta_optim)
 
         best_llh_ind = np.argmin(best_llh_all)
         best_llh = best_llh_all[best_llh_ind]
         best_gamma = best_gamma_all[best_llh_ind]
         best_beta = best_beta_all[best_llh_ind]
+        self.llh_vals.append(best_llh)
 
         if trace_sol:
             best_gamma_steps = gamma_steps_all[best_llh_ind]
@@ -1315,32 +1328,33 @@ class Funcoin:
             best_gamma_steps = float('NaN')
             best_beta_steps = float('NaN')
 
-        return best_llh, best_beta, best_gamma, best_llh_all, best_beta_all, best_gamma_all, llh_steps_all, llh_steps_split_all, llh_steps_beta_optim_all, best_beta_steps, best_gamma_steps
+        return best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps
 
     def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0, low_rank = False, silent_mode=False, stored_data=False):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
 
+        if not stored_data:
+            if FC_mode == False:
+                Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+                Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
+            else:
+                Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
+        else: 
+            Si_list_tilde = []
 
-        if FC_mode == False:
-            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-
-            Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
-        else:
-            Si_list_tilde = Funcoin._make_Si_list_tilde_fromFC(Y_dat, gamma_mat, beta_mat, Ti_list, ddof)
-
-        best_llh, best_beta, best_gamma, _, _, _, _, _, _, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode)
+        best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
 
-        return beta_mat_new, gamma_mat_new, best_llh, best_beta_steps, best_gamma_steps
+        return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps
 
     def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4):
 
         Xi_list = fca.make_Xi_list(X_dat)
-        llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
+        # llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
 
         beta_old = beta_init
         gamma_cand = gamma_init
@@ -1358,22 +1372,22 @@ class Funcoin:
             beta_new = beta_old - part1@part2
             diff = np.max(abs(beta_old-beta_new))
             beta_old = beta_new
-            llh_vals.append(self._loglikelihood(beta_new, gamma_cand, X_dat, Ti_list, Si_list))
+            # llh_vals.append(self._loglikelihood(beta_new, gamma_cand, X_dat, Ti_list, Si_list))
             step_ind +=1
 
         if step_ind>=max_iter:
             warnings.warn('The final optimisation of beta with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.')
 
-        return llh_vals, beta_new
+        return beta_new
 
     def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init):
         sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
         Z_arr = np.squeeze(np.array([gamma_init.T@sigma_list[i]@gamma_init for i in range(len(sigma_list))]))
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
         beta_new = np.expand_dims(np.concatenate(([regmodel.intercept_], regmodel.coef_)),1)
-        llh_vals = [self._loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
+        # llh_vals = [self._loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
 
-        return llh_vals, beta_new
+        return beta_new
 
 
     def _loglikelihood(self, beta, gamma, X_dat, Ti_list, Si_list):
@@ -1533,6 +1547,17 @@ class Funcoin:
 
         return Si_list_tilde
     
+    @staticmethod
+    def _make_Si_list_tilde_fromsingleFC(FC, gamma_mat, beta_mat, Ti, ddof):
+
+        Si = (Ti-ddof)*FC
+
+        gamma_prod = gamma_mat@gamma_mat.T
+
+        Si_tilde = (Si - gamma_prod@Si - Si@gamma_prod + gamma_prod@Si@gamma_prod + gamma_mat@np.diag(np.exp(beta_mat[0,:]))@gamma_mat.T)
+
+        return Si_tilde
+
     @staticmethod
     def _make_Si_list_tilde_fromFC(FC_list, gamma_mat, beta_mat, Ti_list, ddof):
 
