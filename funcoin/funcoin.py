@@ -320,6 +320,8 @@ class Funcoin:
             except:
                 raise Exception('Error. No data was stored before fitting using temporarily stored data. Store data first by using funcoin.add_data_FC() or call funcoin.decompose_FC() inputting a list of FC matrices.')
 
+            if n_FC != X_dat.shape[0]:
+                raise Exception('Error. Number of stored FC matrices does not match the number of subjects (rows) in X_dat (the matrix of covariates).')
 
             if type(Ti_list) == int:
                 Ti_val = Ti_list
@@ -1130,14 +1132,21 @@ class Funcoin:
         beta_init = np.zeros([q_model,1])
 
         Xi_list = fca.make_Xi_list(X_dat)
+        Ti_list_arr = np.array(Ti_list)
         if not stored_data:
-            Ti_list_arr = np.array(Ti_list)
             Si_list_arr = np.array(Si_list)
+            sigma_bar = np.sum(Si_list_arr, axis=0)/np.sum(Ti_list_arr)
         else:
-            ###LOAD DATA HERE
-            print('LOAD DATA HERE')
+            file_list = self.tempdata.list_files()
+            FC_here = self.tempdata.load_FC(file_list[0])
+            Si_sum = FC_here*Ti_list[0]
 
-        sigma_bar = np.sum(Si_list_arr, axis=0)/np.sum(Ti_list_arr)
+            for i3 in range(1,len(file_list)):
+                fname = file_list[i3]
+                FC_here = self.tempdata.load_FC(fname)
+                Si_here = FC_here*Ti_list[i3]
+                Si_sum += Si_here
+            sigma_bar = Si_sum/np.sum(Ti_list_arr)
 
         H_mat = sigma_bar
 
@@ -1190,32 +1199,49 @@ class Funcoin:
             while step_ind<max_iter and diff > tol:
 
                 #Update beta
+                if not stored_data:
+                    matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
+                    matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
+                    mat_for_inv = np.sum(matlist_arr, axis=0)
+                    part2 = np.sum(matlist2_arr, axis=0)
+                else:
+                    file_list = self.tempdata.list_files()
+                    FC_here = self.tempdata.load_FC(file_list[0])
+                    Si_here = FC_here * Ti_list[0]
+                    mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[0] @ Xi_list[0].T
+                    part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[0]
+
+                    for i5 in range(1,len(file_list)):
+                        fname = file_list[i5]
+                        FC_here = self.tempdata.load_FC(fname)
+                        Si_here = FC_here * Ti_list[i5]
+                        mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i5] @ Xi_list[i5].T
+                        part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i5]
 
                 try:
-                    if not stored_data:
-                        matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
-                        matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
-                        
-                    else:
-                        ###LOAD DATA HERE
-                        print('LOAD DATA HERE')
-
-                    mat_for_inv = np.sum(matlist_arr, axis=0)
                     part1 = np.linalg.pinv(mat_for_inv)
-                    part2 = np.sum(matlist2_arr, axis=0)
                 except:
                     raise Exception('Singular matrix occured.')
 
-
-
                 beta_new = beta_old - part1@part2
 
-
-                llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
+                # llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
 
                 #Update gamma
-                A_matlist_arr = np.array([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
-                A_mat = np.sum(A_matlist_arr, axis=0)
+                if not stored_data:
+                    A_matlist_arr = np.array([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
+                    A_mat = np.sum(A_matlist_arr, axis=0)
+                else:
+                    file_list = self.tempdata.list_files()
+                    FC_here = self.tempdata.load_FC(file_list[0])
+                    Si_here = FC_here * Ti_list[0]
+                    A_mat = np.exp(-Xi_list[0].T @ beta_new) * Si_here
+                    for i5 in range(1,len(file_list)):
+                        fname = file_list[i5]
+                        FC_here = self.tempdata.load_FC(fname)
+                        Si_here = FC_here * Ti_list[i5]
+                        A_mat += np.exp(-Xi_list[0].T @ beta_new) * Si_here
+
                 HAH_mat = H_pow @ A_mat @ H_pow
 
                 if not low_rank:
@@ -1232,7 +1258,7 @@ class Funcoin:
                     gamma_new = np.expand_dims(H_pow @ U_hah[:,best_ind],1)
 
 
-                llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
+                # llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
                 llh_steps.append(np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list)))
 
                 beta_steps.append(beta_new)
@@ -1360,7 +1386,14 @@ class Funcoin:
 
         return llh_value
 
+    def _loglikelihood_singlesubj(self, beta, gamma, Xi, Ti, Si):
+        #Ignoring constants
+        arr1 = (Xi.T@beta)*Ti
+        arr2 = gamma.T@Si@gamma * np.exp(-Xi.T@beta)
+        llh_value_singlesubj = 0.5 * arr1 + 0.5 * arr2
 
+        return llh_value_singlesubj
+    
     def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
