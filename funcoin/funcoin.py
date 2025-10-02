@@ -1083,6 +1083,8 @@ class Funcoin:
             Si_list = fca.make_Si_list(Y_dat)
         elif (FC_mode == True) and (stored_data == False):
             Si_list = fca.make_Si_list_from_FC_list(Y_dat, Ti_list, ddof)
+        elif stored_data == True:
+            Si_list = []
 
         for i in range(n_dir_init,max_comps):
 
@@ -1193,7 +1195,7 @@ class Funcoin:
             gamma_steps = [np.expand_dims(gamma_init[:,l],1)]
 
             step_ind = 0
-            diff = 100
+            diff = float('inf')
 
             while step_ind<max_iter and diff > tol:
 
@@ -1251,9 +1253,8 @@ class Funcoin:
                     U_hah, D_hah, _ = np.linalg.svd(HAH_mat)
                     thr2 = np.max(D_hah)*HAH_mat.shape[0]*1e-15
                     zero_inds = D_hah<thr2
-                    D_mod = D_hah.copy()
-                    D_mod[zero_inds] = float('inf')
-                    best_ind = np.argmin(D_mod)
+                    D_hah[zero_inds] = float('inf')
+                    best_ind = np.argmin(D_hah)
                     gamma_new = np.expand_dims(H_pow @ U_hah[:,best_ind],1)
 
 
@@ -1294,9 +1295,9 @@ class Funcoin:
                 gamma_old = -gamma_old
 
             if betaLinReg:
-                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old)
+                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old, stored_data=stored_data)
             else:
-                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old)
+                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old, stored_data=stored_data)
         
             # best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
@@ -1351,7 +1352,7 @@ class Funcoin:
 
         return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps
 
-    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4):
+    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False):
 
         Xi_list = fca.make_Xi_list(X_dat)
         # llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
@@ -1359,13 +1360,29 @@ class Funcoin:
         beta_old = beta_init
         gamma_cand = gamma_init
         step_ind = 0
-        diff = 100
+        diff = float('inf')
         while step_ind<max_iter and diff > tol:
-            try:
+            if not stored_data:
                 matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
-                part1 = np.linalg.inv(np.sum(matlist_arr, axis=0))
                 matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] for i in range(X_dat.shape[0])])
+                mat_for_inv = np.sum(matlist_arr, axis=0)
                 part2 = np.sum(matlist2_arr, axis=0)
+            else:
+                file_list = self.tempdata.list_files()
+                FC_here = self.tempdata.load_FC(file_list[0])
+                Si_here = FC_here * Ti_list[0]
+                mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0] @ Xi_list[0].T
+                part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0]
+
+                for i5 in range(1,len(file_list)):
+                    fname = file_list[i5]
+                    FC_here = self.tempdata.load_FC(fname)
+                    Si_here = FC_here * Ti_list[i5]
+                    mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5] @ Xi_list[i5].T
+                    part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5]
+
+            try:
+                part1 = np.linalg.pinv(mat_for_inv)
             except:
                 raise Exception('Singular matrix occured.')
 
@@ -1380,9 +1397,20 @@ class Funcoin:
 
         return beta_new
 
-    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init):
-        sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
-        Z_arr = np.squeeze(np.array([gamma_init.T@sigma_list[i]@gamma_init for i in range(len(sigma_list))]))
+    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init, stored_data = False):
+        
+        if not stored_data:
+            sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
+            Z_arr = np.squeeze(np.array([gamma_init.T@sigma_list[i]@gamma_init for i in range(len(sigma_list))]))
+        else:
+            Z_list = []
+            file_list = self.tempdata.list_files()
+            for i3 in range(len(file_list)):
+                fname = file_list[i3]
+                FC_here = self.tempdata.load_FC(fname)
+                Z_here = gamma_init.T@FC_here@gamma_init
+                Z_list.append(Z_here) 
+
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
         beta_new = np.expand_dims(np.concatenate(([regmodel.intercept_], regmodel.coef_)),1)
         # llh_vals = [self._loglikelihood(beta_new, gamma_init, X_dat, Ti_list, Si_list)]
