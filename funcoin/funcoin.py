@@ -1119,9 +1119,8 @@ class Funcoin:
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
-            self.gamma = gamma_mat
-            self.beta = beta_mat
             self._fitted = True
+            self._store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = FC_mode, Ti_list = Ti_list, HD_mode = False, stored_data = stored_data)
             
 
         return gamma_mat, beta_mat
@@ -1547,7 +1546,7 @@ class Funcoin:
             dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
         else:
             dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
-        self.dfd_values_training = dfd_values_training
+        self.dfd_values_training = np.array(dfd_values_training)
 
 
         if betaLinReg:
