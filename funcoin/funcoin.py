@@ -1091,7 +1091,13 @@ class Funcoin:
             if not silent_mode:
                 print(f'Identifying projection {i2+1} out of at most {max_comps}')
 
-            p_model = Si_list[0].shape[0]
+            if not stored_data:
+                p_model = Si_list[0].shape[0]
+            else:
+                file_list = self.tempdata.list_files()
+                FC_here = self.tempdata.load_FC(file_list[0])
+                p_model = FC_here.shape[0]
+
             gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
 
             if i2 == 0:
