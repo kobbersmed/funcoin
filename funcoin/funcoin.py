@@ -1148,12 +1148,12 @@ class Funcoin:
         else:
             file_list = self.tempdata.list_files()
             FC_here = self.tempdata.load_FC(file_list[0])
-            Si_sum = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
+            Si_sum = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
 
             for i3 in range(1,len(file_list)):
                 fname = file_list[i3]
                 FC_here = self.tempdata.load_FC(fname)
-                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i3], ddof)
+                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i3], ddof)
                 Si_sum += Si_here
 
             sigma_bar = Si_sum/np.sum(Ti_list_arr)
@@ -1218,14 +1218,14 @@ class Funcoin:
                 else:
                     file_list = self.tempdata.list_files()
                     FC_here = self.tempdata.load_FC(file_list[0])
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
                     mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[0] @ Xi_list[0].T
                     part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[0]
 
                     for i5 in range(1,len(file_list)):
                         fname = file_list[i5]
                         FC_here = self.tempdata.load_FC(fname)
-                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
                         mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i5] @ Xi_list[i5].T
                         part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i5]
 
@@ -1245,13 +1245,13 @@ class Funcoin:
                 else:
                     file_list = self.tempdata.list_files()
                     FC_here = self.tempdata.load_FC(file_list[0])
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
 
                     A_mat = np.exp(-Xi_list[0].T @ beta_new) * Si_here
                     for i5 in range(1,len(file_list)):
                         fname = file_list[i5]
                         FC_here = self.tempdata.load_FC(fname)
-                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
                         A_mat += np.exp(-Xi_list[0].T @ beta_new) * Si_here
 
                 HAH_mat = H_pow @ A_mat @ H_pow
@@ -1295,7 +1295,7 @@ class Funcoin:
                 llh_val_here = 0
                 for i5 in range(len(file_list)):
                     FC_here = self.tempdata.load_FC(file_list[i5])
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
                     llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i5], Ti_list[i5], Si_here)
                     llh_val_here += llh
                 best_llh_here = np.squeeze(llh_val_here)
@@ -1381,14 +1381,14 @@ class Funcoin:
             else:
                 file_list = self.tempdata.list_files()
                 FC_here = self.tempdata.load_FC(file_list[0])
-                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
+                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
                 mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0] @ Xi_list[0].T
                 part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0]
 
                 for i5 in range(1,len(file_list)):
                     fname = file_list[i5]
                     FC_here = self.tempdata.load_FC(fname)
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
                     mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5] @ Xi_list[i5].T
                     part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5]
 
