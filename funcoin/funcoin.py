@@ -1120,7 +1120,7 @@ class Funcoin:
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
             self._fitted = True
-            self._store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = FC_mode, Ti_list = Ti_list, HD_mode = False, stored_data = stored_data)
+            self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = FC_mode, Ti_list = Ti_list, HD_mode = False, stored_data = stored_data)
             
 
         return gamma_mat, beta_mat
