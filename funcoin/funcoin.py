@@ -1252,7 +1252,7 @@ class Funcoin:
                         fname = file_list[i5]
                         FC_here = self.tempdata.load_FC(fname)
                         Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
-                        A_mat += np.exp(-Xi_list[0].T @ beta_new) * Si_here
+                        A_mat += np.exp(-Xi_list[i5].T @ beta_new) * Si_here
 
                 HAH_mat = H_pow @ A_mat @ H_pow
 
