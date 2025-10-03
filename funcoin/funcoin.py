@@ -543,7 +543,7 @@ class Funcoin:
 
 
     def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True, silent_mode = False):
-        """Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the FUNCOIN instance self.gamma, self.beta) .
+        """For now only works with time series data (not by inputting FC matrices or using stored data). Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the FUNCOIN instance self.gamma, self.beta) .
         
         Parameters:
         -----------
@@ -1086,17 +1086,17 @@ class Funcoin:
         elif stored_data == True:
             Si_list = []
 
-        for i in range(n_dir_init,max_comps):
+        for i2 in range(n_dir_init,max_comps):
 
             if not silent_mode:
-                print(f'Identifying projection {i+1} out of at most {max_comps}')
+                print(f'Identifying projection {i2+1} out of at most {max_comps}')
 
             p_model = Si_list[0].shape[0]
             gamma_init_used = Funcoin._initialise_gamma(gamma_init, rand_init, p_model, n_init, seed)
 
-            if i == 0:
+            if i2 == 0:
                 try:
-                    _, best_beta, best_gamma, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+                    _, best_beta, best_gamma, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -1107,6 +1107,7 @@ class Funcoin:
                 try:
                     _, beta_mat_new, gamma_mat_new, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
                 except:
+                    self._fitted = True
                     beta_mat = beta_mat_new
                     gamma_mat = gamma_mat_new
                     
@@ -1118,12 +1119,15 @@ class Funcoin:
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
+            self.gamma = gamma_mat
+            self.beta = beta_mat
+            self._fitted = True
             
 
         return gamma_mat, beta_mat
 
 
-    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False, low_rank = False, silent_mode=False, stored_data=False):        
+    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False, low_rank = False, silent_mode=False, stored_data=False, ddof = 0):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
@@ -1139,13 +1143,14 @@ class Funcoin:
         else:
             file_list = self.tempdata.list_files()
             FC_here = self.tempdata.load_FC(file_list[0])
-            Si_sum = FC_here*Ti_list[0]
+            Si_sum = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
 
             for i3 in range(1,len(file_list)):
                 fname = file_list[i3]
                 FC_here = self.tempdata.load_FC(fname)
-                Si_here = FC_here*Ti_list[i3]
+                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i3], ddof)
                 Si_sum += Si_here
+
             sigma_bar = Si_sum/np.sum(Ti_list_arr)
 
         H_mat = sigma_bar
@@ -1208,14 +1213,14 @@ class Funcoin:
                 else:
                     file_list = self.tempdata.list_files()
                     FC_here = self.tempdata.load_FC(file_list[0])
-                    Si_here = FC_here * Ti_list[0]
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
                     mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[0] @ Xi_list[0].T
                     part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[0]
 
                     for i5 in range(1,len(file_list)):
                         fname = file_list[i5]
                         FC_here = self.tempdata.load_FC(fname)
-                        Si_here = FC_here * Ti_list[i5]
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
                         mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i5] @ Xi_list[i5].T
                         part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i5]
 
@@ -1235,12 +1240,13 @@ class Funcoin:
                 else:
                     file_list = self.tempdata.list_files()
                     FC_here = self.tempdata.load_FC(file_list[0])
-                    Si_here = FC_here * Ti_list[0]
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
+
                     A_mat = np.exp(-Xi_list[0].T @ beta_new) * Si_here
                     for i5 in range(1,len(file_list)):
                         fname = file_list[i5]
                         FC_here = self.tempdata.load_FC(fname)
-                        Si_here = FC_here * Ti_list[i5]
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
                         A_mat += np.exp(-Xi_list[0].T @ beta_new) * Si_here
 
                 HAH_mat = H_pow @ A_mat @ H_pow
@@ -1284,7 +1290,7 @@ class Funcoin:
                 llh_val_here = 0
                 for i5 in range(len(file_list)):
                     FC_here = self.tempdata.load_FC(file_list[i5])
-                    Si_here = FC_here * Ti_list[i5]
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
                     llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i5], Ti_list[i5], Si_here)
                     llh_val_here += llh
                 best_llh_here = np.squeeze(llh_val_here)
@@ -1295,9 +1301,9 @@ class Funcoin:
                 gamma_old = -gamma_old
 
             if betaLinReg:
-                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old, stored_data=stored_data)
+                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old, stored_data=stored_data, ddof = ddof)
             else:
-                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old, stored_data=stored_data)
+                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old, stored_data=stored_data, ddof = ddof)
         
             # best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
@@ -1352,7 +1358,7 @@ class Funcoin:
 
         return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps
 
-    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False):
+    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False, ddof = 0):
 
         Xi_list = fca.make_Xi_list(X_dat)
         # llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
@@ -1370,14 +1376,14 @@ class Funcoin:
             else:
                 file_list = self.tempdata.list_files()
                 FC_here = self.tempdata.load_FC(file_list[0])
-                Si_here = FC_here * Ti_list[0]
+                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[0], ddof)
                 mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0] @ Xi_list[0].T
                 part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0]
 
                 for i5 in range(1,len(file_list)):
                     fname = file_list[i5]
                     FC_here = self.tempdata.load_FC(fname)
-                    Si_here = FC_here * Ti_list[i5]
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(self, FC_here, Ti_list[i5], ddof)
                     mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5] @ Xi_list[i5].T
                     part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5]
 
@@ -1397,7 +1403,7 @@ class Funcoin:
 
         return beta_new
 
-    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init, stored_data = False):
+    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init, stored_data = False, ddof = 0):
         
         if not stored_data:
             sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
@@ -1408,7 +1414,7 @@ class Funcoin:
             for i3 in range(len(file_list)):
                 fname = file_list[i3]
                 FC_here = self.tempdata.load_FC(fname)
-                Z_here = gamma_init.T@FC_here@gamma_init
+                Z_here = gamma_init.T@(FC_here*((Ti_list[i3]-ddof)/Ti_list[i3]))@gamma_init
                 Z_list.append(Z_here) 
 
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
@@ -1565,6 +1571,19 @@ class Funcoin:
 
         return s2
 
+    def _make_Si_or_Si_tilde_fromsingleFC(self, FC, Ti, ddof):
+        kthfit = (self.gamma is not False)
+        if kthfit:
+            gamma_fitted = self.gamma
+            beta_fitted = self.beta
+
+        if not kthfit:
+            Si_here = fca.make_Si_from_FC(FC, Ti, ddof)
+        else:
+            Si_here = Funcoin._make_Si_tilde_fromsingleFC(FC, gamma_fitted, beta_fitted, Ti, ddof)
+
+        return Si_here
+
     @staticmethod
     def _make_Si_list_tilde(Y_dat, gamma_mat, beta_mat):
 
@@ -1576,7 +1595,7 @@ class Funcoin:
         return Si_list_tilde
     
     @staticmethod
-    def _make_Si_list_tilde_fromsingleFC(FC, gamma_mat, beta_mat, Ti, ddof):
+    def _make_Si_tilde_fromsingleFC(FC, gamma_mat, beta_mat, Ti, ddof):
 
         Si = (Ti-ddof)*FC
 
