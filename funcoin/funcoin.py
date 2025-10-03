@@ -1517,7 +1517,7 @@ class Funcoin:
 
         return Ytilde_mats
 
-    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False, stored_data = True):
+    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False, stored_data = False):
         
         self.gamma = gamma_mat
         self.beta = beta_mat
