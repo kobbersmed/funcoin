@@ -185,7 +185,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        if type(Ti_list) == int:
+        if type(Ti_list) == int or type(Ti_list) == float:
             Ti_val = Ti_list
             Ti_list = [Ti_val for i in range(len(FC_list))]
         elif type(Ti_list) == list:
@@ -324,7 +324,7 @@ class Funcoin:
             if n_FC != X_dat.shape[0]:
                 raise Exception('Error. Number of stored FC matrices does not match the number of subjects (rows) in X_dat (the matrix of covariates).')
 
-            if type(Ti_list) == int:
+            if type(Ti_list) == int or type(Ti_list) == float:
                 Ti_val = Ti_list
                 Ti_list = [Ti_val for i in range(n_FC)]
             elif type(Ti_list) == list:
@@ -1034,7 +1034,7 @@ class Funcoin:
             stored_data = kwargs['stored_data']
         except:
             stored_data = False
-        else:
+        finally:
             self.decomp_settings['stored_data'] = stored_data
 
         isfit = self.isfitted()
