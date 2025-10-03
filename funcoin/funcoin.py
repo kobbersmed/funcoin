@@ -1421,6 +1421,7 @@ class Funcoin:
                 FC_here = self.tempdata.load_FC(fname)
                 Z_here = gamma_init.T@(FC_here*((Ti_list[i3]-ddof)/Ti_list[i3]))@gamma_init
                 Z_list.append(Z_here) 
+            Z_arr = np.squeeze(np.array(Z_list))
 
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
         beta_new = np.expand_dims(np.concatenate(([regmodel.intercept_], regmodel.coef_)),1)
