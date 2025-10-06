@@ -982,10 +982,10 @@ class Funcoin:
         """
         return self._fitted
     
-    def add_data_FC(self, ID, FC):
+    def add_data_FC(self, ID, FC, dir):
 
         if self.tempdata is None:
-            self.tempdata = TempStorage()
+            self.tempdata = TempStorage(dir=dir)
             self.tempdata_type = 'FC'
         
         _ = self.tempdata.save_FC(ID, FC)

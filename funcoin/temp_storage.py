@@ -6,9 +6,9 @@ import warnings
 class TempStorage:
     """Manages temporary files for large datasets."""
 
-    def __init__(self, prefix="Funcoin_"):
+    def __init__(self, dir = None, prefix="Funcoin_"):
         # Create a temporary directory object
-        self._temp_dir_obj = tempfile.TemporaryDirectory(prefix=prefix)
+        self._temp_dir_obj = tempfile.TemporaryDirectory(prefix=prefix, dir=dir)
         self._temp_dir = self._temp_dir_obj.name  # Path to directory
         print(f'Created a temporary folder at {self._temp_dir}')
         self._files = []
