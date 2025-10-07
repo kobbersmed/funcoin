@@ -750,7 +750,7 @@ class Funcoin:
         dfd_vals = self.calc_dfd_values(self, Y_dat, weighted_io, dfd_aritm, logtrick_io)
         return dfd_vals
 
-    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1, Ti_list=[]):
+    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1, Ti_list=[], stored_data = False):
         """
         Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
         
@@ -775,7 +775,7 @@ class Funcoin:
             raise Exception('DfD values could not be computed, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
         n_dir = self.gamma.shape[1]
-        dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list) for i in range(n_dir)]
+        dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list, stored_data=stored_data) for i in range(n_dir)]
         return dfd_vals
 
 
@@ -1460,7 +1460,7 @@ class Funcoin:
 
         return llh_value_singlesubj
     
-    def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = []):
+    def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = [], stored_data= False):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
         
@@ -1486,7 +1486,15 @@ class Funcoin:
             Si_list = Y_dat
             Ti_list = np.array(Ti_list)
 
-        mat_prods = [(gamma_here.T@Si_list[i]@gamma_here)/(Y_dat[i].shape[0]) for i in range(len(Si_list))]
+        if not stored_data:
+            mat_prods = [(gamma_here.T@Si_list[i]@gamma_here)/(Ti_list[i]) for i in range(len(Si_list))]
+        else:
+            mat_prods = []
+            file_list = self.tempdata.list_files()
+            for i in range(len(file_list)):
+                FC_here = self.tempdata.load_FC(file_list[0])
+                mat_prods.append(gamma_here.T@FC_here@gamma_here)
+
         if not weighted_io:
             nu_vals = np.array([fca.dfd_func(mat_prods[i]) for i in range(len(Si_list))])
             if not dfd_aritm:
@@ -1499,15 +1507,15 @@ class Funcoin:
         else:
             if not dfd_aritm:
                 if not logtrick_io:
-                    nu_vals = np.array([fca.dfd_func(mat_prods[i])**(Y_dat[i].shape[0]) for i in range(len(Si_list))])
+                    nu_vals = np.array([fca.dfd_func(mat_prods[i])**(Ti_list[i]) for i in range(len(Si_list))])
                     sum_of_Ti = np.sum(Ti_list)
                     dfd_proj = (np.prod(nu_vals**(1/sum_of_Ti)))
                 elif logtrick_io:
-                    nu_vals = np.array([np.log(fca.dfd_func(mat_prods[i]))*(Y_dat[i].shape[0]) for i in range(len(Si_list))])
+                    nu_vals = np.array([np.log(fca.dfd_func(mat_prods[i]))*(Ti_list[i]) for i in range(len(Si_list))])
                     sum_of_Ti = np.sum(Ti_list)
                     dfd_proj = np.exp((np.sum(nu_vals)/sum_of_Ti))
             else:
-                nu_vals = np.array([fca.dfd_func(mat_prods[i])*(Y_dat[i].shape[0]) for i in range(len(Si_list))])
+                nu_vals = np.array([fca.dfd_func(mat_prods[i])*(Ti_list[i]) for i in range(len(Si_list))])
                 sum_of_Ti = np.sum(Ti_list)
                 dfd_proj = (np.sum(nu_vals))/sum_of_Ti
                 
@@ -1562,9 +1570,9 @@ class Funcoin:
         w_io = not Ti_equal
 
         if FC_mode:
-            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list)
+            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list, stored_data=stored_data)
         else:
-            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
+            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, stored_data=stored_data)
         self.dfd_values_training = np.array(dfd_values_training)
 
 
