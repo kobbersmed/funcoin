@@ -56,6 +56,7 @@ class Funcoin:
         self.llh_vals = []
         self.tempdata = None
         self._fitted = False
+        self.dirs_bad_convergence = []
         
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
@@ -1102,7 +1103,7 @@ class Funcoin:
 
             if i2 == 0:
                 try:
-                    _, best_beta, best_gamma, _, _ = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof)
+                    _, best_beta, best_gamma, _, _, bad_conv = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -1111,7 +1112,7 @@ class Funcoin:
                     gamma_mat_new = best_gamma
             else:
                 try:
-                    _, beta_mat_new, gamma_mat_new, _, _ = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+                    _, beta_mat_new, gamma_mat_new, _, _, bad_conv = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
                 except:
                     self._fitted = True
                     beta_mat = beta_mat_new
@@ -1122,6 +1123,9 @@ class Funcoin:
 
             if seed:
                 seed += 1 #Ensure new random initial conditions for each projection identified. If seeded to begin with, the decomposition as a whole is still reproducable.
+
+            if bad_conv:
+                self.dirs_bad_convergence.append(i2)
 
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
@@ -1185,6 +1189,8 @@ class Funcoin:
         # llh_steps_beta_optim_all = []
 
         n_init_used = gamma_init.shape[1]
+
+        steps_conv = []
 
         for l in range(n_init_used):
             if not silent_mode:
@@ -1283,9 +1289,8 @@ class Funcoin:
 
                 step_ind +=1
 
-            if step_ind>=max_iter:
-                warnings.warn('The fitting routine with at least one of the initial conditions terminated because the maximum number of iterations was reached rather than due to convergence.', stacklevel=4)
-
+            steps_conv.append(step_ind)
+              
             #Calculate llh for fitting result of this initial condition
             if not stored_data:
                 best_llh_here = np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list))
@@ -1330,6 +1335,13 @@ class Funcoin:
         best_gamma = best_gamma_all[best_llh_ind]
         best_beta = best_beta_all[best_llh_ind]
         self.llh_vals.append(best_llh)
+        best_steps_conv = steps_conv[best_llh_ind]
+
+        if best_steps_conv>=max_iter:
+            warnings.warn('The \"best fit\" was reached when the maximum number of iterations was reached rather than due to convergence.', stacklevel=4)
+            bad_conv = True
+        else:
+            bad_conv = False
 
         if trace_sol:
             best_gamma_steps = gamma_steps_all[best_llh_ind]
@@ -1340,7 +1352,7 @@ class Funcoin:
             best_gamma_steps = float('NaN')
             best_beta_steps = float('NaN')
 
-        return best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps
+        return best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps, bad_conv
 
     def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0, low_rank = False, silent_mode=False, stored_data=False):
         """
@@ -1356,12 +1368,12 @@ class Funcoin:
         else: 
             Si_list_tilde = []
 
-        best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+        best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps, bad_conv = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
 
-        return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps
+        return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps, bad_conv
 
     def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False, ddof = 0):
 
