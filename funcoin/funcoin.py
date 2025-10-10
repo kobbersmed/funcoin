@@ -260,11 +260,11 @@ class Funcoin:
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def decompose_FC_stored_data(self, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
-            """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, and  a covariate matrix, X_dat. 
-            
+            """Performs FUNCOIN decomposition the FC matrices provided by using the method self.add_data_FC(). The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
+            The order of the FC matrices added must match the order of the subjects' covariates in X_dat. A list of the IDs for already added FC matrices can be obtained with the method self.list_datafiles().
+
             Parameters:
             -----------
-            FC_list: List of length [number of subjects] containing covariance/correlation matrix for each subject. Each element of the list should be array-like of shape (p, p), with p the number of regions. 
             X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
             Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                         subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
@@ -343,6 +343,72 @@ class Funcoin:
 
             self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
 
+    def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+            """Performs FUNCOIN decomposition the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single FC matrix.
+            The concatenated strings of filepath and each filename must provide the valid paths to the data files.
+            A list of the filenames of FC matrices used for fitting a FUNCOIN instance can be obtained with the method self.list_datafiles().
+            
+            Parameters:
+            -----------
+            filenames: List of strings. Each element is the filename of the .npy files of each FC matrix to be used as training data. If filepath is sepcified, the file must be located as specified by the concatenated string of filepath and filename. Otherwise, each must point filename must point to each file.  
+                        The order of the filenames must match the order of the subjects' covariates in X_dat.
+            X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
+            filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
+            Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
+                        subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
+            ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
+                        Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
+            max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
+                        if the problem is ill-posed, e.g. if no common components can be found or the common directions of variance have already been identified.
+            gamma_init: False or array of length n_regions. If not False, the optimization algorithm uses the array as initial condition for gamma. In the optimisation algorithm, beta is determined from the current gamma, 
+                        without utilising an initial beta matrix. Default value False.
+            rand_init: Boolean. If True, the decomposition will use random initial gamma values. Default value True.
+            n_init: Integer. Default value 20. 
+            max_iter: Integer>0. Maximal number of iterations when determining gamma (and beta, if betaLinReg is False). Default value 1000.
+            tol: Float >0. Maximal tolerance when optimizing for gamma (and beta). If an iteration yields an absolute change smaller than this value in all elements of gamma and beta, the optimisation stops. Default 1e-4.
+            trace_sol: Boolean. Whether or not to keep all intermediate steps in the optimization of gamma and beta. The steps are stored in lists in instance variables self.gamma_steps_all and self.beta_steps_all.
+            seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
+            betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
+            overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+            low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
+                                If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
+            silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
+                    
+            Returns
+            -------
+            self : Funcoin
+                Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+            Attributes:
+            --------
+            beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+            gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+            dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+            u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+            residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+            beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                            Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+            beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+                            Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+            beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+                            Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+            gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
+            decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+                            
+            Raises:
+            -------
+            Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
+            Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
+            Exception: Raises exception if no common components (gammas) can be identified.
+            Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
+                        variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
+            """
+
+            self.tempdata = TempStorage()
+            filenames_full = [filepath + filenames[i] for i in range(len(filenames))]
+            self.tempdata._files = filenames_full
+
+            self.decompose_FC_stored_data(X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs)
 
     def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and computes the u values using the gamma matrix.
