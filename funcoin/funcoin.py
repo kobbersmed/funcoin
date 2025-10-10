@@ -1066,7 +1066,7 @@ class Funcoin:
 
         return filelist
 
-    def return_all_attributes_dict(self):
+    def get_all_attributes_dict(self):
         """
         Returns a dictionary of all attributes (gamma, beta, u_training, etc.) from the Funcoin instance. Any temporary data and associated info (e.g. temporary filepaths and data types) are not saved. 
         """
