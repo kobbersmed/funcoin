@@ -260,7 +260,7 @@ class Funcoin:
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def decompose_FC_stored_data(self, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
-            """Performs FUNCOIN decomposition the FC matrices provided by using the method self.add_data_FC(). The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
+            """Performs FUNCOIN decomposition on the FC matrices provided by using the method self.add_data_FC(). The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
             The order of the FC matrices added must match the order of the subjects' covariates in X_dat. A list of the IDs for already added FC matrices can be obtained with the method self.list_datafiles().
 
             Parameters:
@@ -344,7 +344,7 @@ class Funcoin:
             self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
 
     def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
-            """Performs FUNCOIN decomposition the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single FC matrix.
+            """Performs FUNCOIN decomposition on the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single FC matrix.
             The concatenated strings of filepath and each filename must provide the valid paths to the data files.
             A list of the filenames of FC matrices used for fitting a FUNCOIN instance can be obtained with the method self.list_datafiles().
             
@@ -408,7 +408,85 @@ class Funcoin:
             filenames_full = [filepath + filenames[i] for i in range(len(filenames))]
             self.tempdata._files = filenames_full
 
-            self.decompose_FC_stored_data(X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs)
+            self.decompose_FC_stored_data(X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False)
+
+    def decompose_FC_eigen(self, eigenvecs_list, eigenvals_list, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, silent_mode = False, **kwargs):
+            """Performs FUNCOIN decomposition the FC matrices provided by inputting the eigenvectors and eigenvalues. This is useful if the FC matrices are large but of low rank, because it allows to input only the eigenvectors and -values corresponging to non-zero eigenvalues, thereby saving memory.
+            
+            Parameters:
+            -----------
+            eigenvecs: List of length [no. of subjects]. Each element is a matrix of size p-by-r_i, whose columns are r eigenvectors of the FC matrix of subject i to be used in the fitting process (p is the number of regions).
+            eigenvals: List of length [no. of subjects]. Each element is a vector of length r_i containing the eigenvalues corresponding to the eigenvectors specified in eigenvecs.
+            X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
+            filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
+            Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
+                        subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
+            ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
+                        Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
+            max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
+                        if the problem is ill-posed, e.g. if no common components can be found or the common directions of variance have already been identified.
+            gamma_init: False or array of length n_regions. If not False, the optimization algorithm uses the array as initial condition for gamma. In the optimisation algorithm, beta is determined from the current gamma, 
+                        without utilising an initial beta matrix. Default value False.
+            rand_init: Boolean. If True, the decomposition will use random initial gamma values. Default value True.
+            n_init: Integer. Default value 20. 
+            max_iter: Integer>0. Maximal number of iterations when determining gamma (and beta, if betaLinReg is False). Default value 1000.
+            tol: Float >0. Maximal tolerance when optimizing for gamma (and beta). If an iteration yields an absolute change smaller than this value in all elements of gamma and beta, the optimisation stops. Default 1e-4.
+            trace_sol: Boolean. Whether or not to keep all intermediate steps in the optimization of gamma and beta. The steps are stored in lists in instance variables self.gamma_steps_all and self.beta_steps_all.
+            seed_initial: Integer or None. If integer, this seeds the random initial conditions. Default value False.
+            betaLinReg: Boolean. If true, the algorithm concludes with performing ordinary linear regression on the transformed values using the gamma transformation found to improve accuracy of beta estimation. Default False.
+            overwrite_fit: Boolean. If False: Returns an exception if the class object has already been fitted to data. If True: Fits using the provided data and overwrites any existing values of gamma, beat, dfd_values_training, and u_training.
+            low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
+                                If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
+            silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
+                    
+            Returns
+            -------
+            self : Funcoin
+                Returns the instance itself. The fitted model parameters, statistics, and decomposition settings are stored as instance attributes.        
+
+            Attributes:
+            --------
+            beta: Array-like of shape (q,n_dir). Coefficients of the log-linear model identified during decomposition.
+            gamma: Array-like of shape (p,n_dir). Matrix with each column being an identified gamma projection.
+            dfd_values_training: Array of length n_dir. Contains the average values of "deviation from diagonality" computed on the data used to fit the model. This can be used for selecting the number of projections (see Zhao, Y. et al. (2021)). 
+            u_training: The transformed values of the data used to fit the model, i.e. the logarithm of the diagonal elements of Gamma.T @ Sigma_i @Gamma for subject i.
+            residual_std_train: Projection-wise standard deviation of the residuals (i.e. transformed values minus the mean). Computed assuming homogeneity of variance.
+            beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
+                            Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+            beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05. 
+                            Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+            beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+                            Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+            gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
+            decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+                            
+            Raises:
+            -------
+            Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
+            Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
+            Exception: Raises exception if no common components (gammas) can be identified.
+            Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
+                        variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
+            """
+
+            eigvals_lens = np.array([len(eigenvals_list[i]) for i in range(len(eigenvals_list))])
+            p_eigvecs = np.array([eigenvecs_list[i].shape[0] for i in range(len(eigenvecs_list))])
+            n_eigvecs = np.array([eigenvecs_list[i].shape[1] for i in range(len(eigenvecs_list))])
+
+            if not np.all(eigvals_lens==n_eigvecs):
+                raise Exception('Error: Number of eigenvalues and number of eigenvectors did not match for at least one subject.')
+
+            if np.sum(n_eigvecs<p_eigvecs):
+                low_rank = True
+            else:
+                low_rank = False
+
+            self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, stored_data = True, eigen_io=True)
+            
+            gamma_mat, beta_mat = self._decomposition([], X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=False, eigenvecs = eigenvecs_list, eigenvals = eigenvals_list)
+
+            self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
+
 
     def transform_timeseries(self, Y_dat, dirs = []):
         """Takes a list of time series data and computes the u values using the gamma matrix.
@@ -816,7 +894,7 @@ class Funcoin:
         dfd_vals = self.calc_dfd_values(self, Y_dat, weighted_io, dfd_aritm, logtrick_io)
         return dfd_vals
 
-    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1, Ti_list=[], stored_data = False):
+    def calc_dfd_values_FC(self, FC_list, weighted_io=1, dfd_aritm = 0, logtrick_io = 1, Ti_list=[], stored_data = False, ddof = 0, **kwargs):
         """
         Computes the  "deviation from diagonality (dfd)" (Flury and Gautschi, 1986) averaged across subjects for each of the identified directions in the FUNCOIN model. This is suggested as a measure to decide on the number of projection directions to keep (Zhao et al, 2021).
         
@@ -826,7 +904,9 @@ class Funcoin:
         weighted_io: Boolean or 0/1. If set to True/1, the average dfd value is a weighted average according to the number of time points for each subject. If all subjects have the same number of time points, setting this parameter to 1 can improve estimation by reducing the risk of overflow.
         dfd_aritm: Boolean or 0/1. If set to False/0, the average dfd value is computed as the geometric mean (weighted or unweighted according to the weighted_io parameter). If 1, the arithmetic mean is used. Default value is 0. 
         logtrick_io: Boolean of 0/1. When computing the harmonic mean, a log-transformation is temporarily applied to avoid overflow. Recommended, but can be disabled to test the difference. Default value 1.
-    
+        stored_data: Boolean True or False. If True, the FC data is loaded from data files.
+        eigen_io: Boolean True or False. If True, the data provided 
+        
         Returns: 
         --------
         dfd_proj: A number to measure the deviation from diagonality of the projected data matrices. 
@@ -836,12 +916,19 @@ class Funcoin:
         Exception: If gamma matrix is not fitted nor predefined.
         """
 
+        try:
+            eigen_io = kwargs['eigen_io']
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvals']
+
+        except:
+            eigen_io = False
 
         if self.gamma is False:
             raise Exception('DfD values could not be computed, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
 
         n_dir = self.gamma.shape[1]
-        dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list, stored_data=stored_data) for i in range(n_dir)]
+        dfd_vals = [self._deviation_from_diag(i, FC_list, weighted_io, dfd_aritm, logtrick_io, FC_mode = True, Ti_list=Ti_list, stored_data=stored_data, ddof=ddof, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals) for i in range(n_dir)]
         return dfd_vals
 
 
@@ -1104,6 +1191,13 @@ class Funcoin:
         finally:
             self.decomp_settings['stored_data'] = stored_data
 
+        try:
+            eigen_io = kwargs['eigen_io']
+        except:
+            eigen_io = False
+        finally:
+            self.decomp_settings['eigen_io'] = eigen_io
+
         isfit = self.isfitted()
 
         if isfit and not (overwrite_fit or add_to_fit):
@@ -1130,7 +1224,7 @@ class Funcoin:
 
         return laststr
 
-    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0, low_rank = False, silent_mode = False, stored_data = False):
+    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0, low_rank = False, silent_mode = False, stored_data = False, **kwargs):
 
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
@@ -1144,21 +1238,34 @@ class Funcoin:
         else:
             n_dir_init = 0
 
+        try:
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvals']
+            eigen_io = True
+        except:
+            eigenvecs = None
+            eigenvals = None
+            eigen_io = False
+
+
         if (FC_mode == False) and (stored_data == False):
             Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
             Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
             Si_list = fca.make_Si_list(Y_dat)
-        elif (FC_mode == True) and (stored_data == False):
+        elif (FC_mode == True) and (stored_data == False) and (eigen_io==False):
             Si_list = fca.make_Si_list_from_FC_list(Y_dat, Ti_list, ddof)
-        elif stored_data == True:
+        elif stored_data == True or eigen_io == True:
             Si_list = []
+
+
+
 
         for i2 in range(n_dir_init,max_comps):
 
             if not silent_mode:
                 print(f'Identifying projection {i2+1} out of at most {max_comps}')
 
-            if not stored_data:
+            if not stored_data and not eigen_io:
                 p_model = Si_list[0].shape[0]
             else:
                 file_list = self.tempdata.list_files()
@@ -1169,7 +1276,7 @@ class Funcoin:
 
             if i2 == 0:
                 try:
-                    _, best_beta, best_gamma, _, _, bad_conv = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof)
+                    _, best_beta, best_gamma, _, _, bad_conv = self._first_direction(Si_list, X_dat, Ti_list, gamma_init_used, max_iter = max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
                 except:
                     raise Exception('Exception occured. Did not find any principal directions using FUNCOIN algorithm.')
                 else:
@@ -1178,7 +1285,7 @@ class Funcoin:
                     gamma_mat_new = best_gamma
             else:
                 try:
-                    _, beta_mat_new, gamma_mat_new, _, _, bad_conv = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+                    _, beta_mat_new, gamma_mat_new, _, _, bad_conv = self._kth_direction(Y_dat, X_dat, beta_mat, gamma_mat, gamma_init_used, max_iter=max_iter, tol = tol, trace_sol=trace_sol, betaLinReg=betaLinReg, FC_mode = FC_mode, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
                 except:
                     self._fitted = True
                     beta_mat = beta_mat_new
@@ -1196,33 +1303,59 @@ class Funcoin:
             beta_mat = beta_mat_new
             gamma_mat = gamma_mat_new
             self._fitted = True
-            self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = FC_mode, Ti_list = Ti_list, HD_mode = False, stored_data = stored_data)
+            self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = FC_mode, Ti_list = Ti_list, HD_mode = False, stored_data = stored_data, eigen_io=eigen_io)
             
 
         return gamma_mat, beta_mat
 
 
-    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False, low_rank = False, silent_mode=False, stored_data=False, ddof = 0):        
+    def _first_direction(self, Si_list, X_dat, Ti_list, gamma_init, max_iter = 1000, tol = 1e-4, trace_sol = False, betaLinReg = False, low_rank = False, silent_mode=False, stored_data=False, ddof = 0, eigen_io = False, **kwargs):        
         """                     
         Using the method from Zhao et al 2021 to find the first gamma projection.
         """
+
+        if eigen_io and (not stored_data):
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvecs']
+        else:
+            eigenvecs = None
+            eigenvals = None
 
         q_model = X_dat.shape[1]
         beta_init = np.zeros([q_model,1])
 
         Xi_list = fca.make_Xi_list(X_dat)
         Ti_list_arr = np.array(Ti_list)
-        if not stored_data:
+        if not stored_data and not eigen_io:
             Si_list_arr = np.array(Si_list)
             sigma_bar = np.sum(Si_list_arr, axis=0)/np.sum(Ti_list_arr)
-        else:
+        elif stored_data:
             file_list = self.tempdata.list_files()
-            FC_here = self.tempdata.load_FC(file_list[0])
+            if not eigen_io:
+                FC_here = self.tempdata.load_FC(file_list[0])
+            else:
+                FC_sqrt = self.tempdata.load_FC(file_list[0])
+                FC_here = FC_sqrt@FC_sqrt.T
             Si_sum = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
 
             for i3 in range(1,len(file_list)):
                 fname = file_list[i3]
                 FC_here = self.tempdata.load_FC(fname)
+                Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i3], ddof)
+                Si_sum += Si_here
+
+            sigma_bar = Si_sum/np.sum(Ti_list_arr)
+        elif eigen_io and not stored_data:
+            FC_here = eigenvecs[0]@np.diag(eigenvals[0])@eigenvecs[0].T
+            Si_sum = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
+
+            for i3 in range(1,len(file_list)):
+                fname = file_list[i3]
+                if not eigen_io:
+                    FC_here = self.tempdata.load_FC(fname)
+                else:
+                    FC_sqrt = self.tempdata.load_FC(fname)
+                    FC_here = FC_sqrt@FC_sqrt.T
                 Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i3], ddof)
                 Si_sum += Si_here
 
@@ -1282,24 +1415,44 @@ class Funcoin:
             while step_ind<max_iter and diff > tol:
 
                 #Update beta
-                if not stored_data:
+                if not stored_data and not eigen_io:
                     matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                     matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_old.T@ Si_list[i] @gamma_old) * Xi_list[i] for i in range(X_dat.shape[0])])
                     mat_for_inv = np.sum(matlist_arr, axis=0)
                     part2 = np.sum(matlist2_arr, axis=0)
                 else:
-                    file_list = self.tempdata.list_files()
-                    FC_here = self.tempdata.load_FC(file_list[0])
+                    if stored_data == True:
+                        file_list = self.tempdata.list_files()
+                        if not eigen_io:
+                            FC_here = self.tempdata.load_FC(file_list[0])
+                        else:
+                            FC_sqrt = self.tempdata.load_FC(file_list[0])
+                            FC_here = FC_sqrt@FC_sqrt.T
+                    elif not stored_data and eigen_io:
+                        FC_here = eigenvecs[0]@np.diag(eigenvals[0])@eigenvecs[0].T
+
                     Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
                     mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[0] @ Xi_list[0].T
                     part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[0]
 
-                    for i5 in range(1,len(file_list)):
-                        fname = file_list[i5]
-                        FC_here = self.tempdata.load_FC(fname)
-                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
-                        mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i5] @ Xi_list[i5].T
-                        part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i5]
+                    if stored_data == True:
+                        for i6 in range(1,len(file_list)):
+                            fname = file_list[i6]
+                            if not eigen_io:
+                                FC_here = self.tempdata.load_FC(fname)
+                            else:
+                                FC_sqrt = self.tempdata.load_FC(fname)
+                                FC_here = FC_sqrt@FC_sqrt.T
+
+                            Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                            mat_for_inv += (np.exp(-Xi_list[i6].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i6] @ Xi_list[i6].T
+                            part2 += (Ti_list[i6] - np.exp(-Xi_list[i6].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i6]
+                    elif not stored_data and eigen_io:
+                        for i6 in range(1,len(eigenvals)):
+                            FC_here = eigenvecs[i6]@np.diag(eigenvals[i6])@eigenvecs[i6].T
+                            Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                            mat_for_inv += (np.exp(-Xi_list[i6].T @ beta_old) * gamma_old.T@ Si_here @gamma_old) * Xi_list[i6] @ Xi_list[i6].T
+                            part2 += (Ti_list[i6] - np.exp(-Xi_list[i6].T @ beta_old)@gamma_old.T@ Si_here @gamma_old) * Xi_list[i6]
 
                 try:
                     part1 = np.linalg.pinv(mat_for_inv)
@@ -1311,20 +1464,37 @@ class Funcoin:
                 # llh_steps_split.append(np.squeeze(self._loglikelihood(beta_new, gamma_old, X_dat, Ti_list, Si_list)))
 
                 #Update gamma
-                if not stored_data:
+                if not stored_data and not eigen_io:
                     A_matlist_arr = np.array([np.exp(-Xi_list[i].T @ beta_new) * Si_list[i] for i in range(X_dat.shape[0])])
                     A_mat = np.sum(A_matlist_arr, axis=0)
                 else:
-                    file_list = self.tempdata.list_files()
-                    FC_here = self.tempdata.load_FC(file_list[0])
+                    if stored_data == True:
+                        file_list = self.tempdata.list_files()
+                        if not eigen_io:
+                            FC_here = self.tempdata.load_FC(file_list[0])
+                        else:
+                            FC_sqrt = self.tempdata.load_FC(file_list[0])
+                            FC_here = FC_sqrt@FC_sqrt.T
+                    elif not stored_data and eigen_io:
+                        FC_here = eigenvecs[0]@np.diag(eigenvals[0])@eigenvecs[0].T
                     Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
 
                     A_mat = np.exp(-Xi_list[0].T @ beta_new) * Si_here
-                    for i5 in range(1,len(file_list)):
-                        fname = file_list[i5]
-                        FC_here = self.tempdata.load_FC(fname)
-                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
-                        A_mat += np.exp(-Xi_list[i5].T @ beta_new) * Si_here
+                    if stored_data == True:
+                        for i6 in range(1,len(file_list)):
+                            fname = file_list[i6]
+                            if not eigen_io:
+                                FC_here = self.tempdata.load_FC(fname)
+                            else:
+                                FC_sqrt = self.tempdata.load_FC(fname)
+                                FC_here = FC_sqrt@FC_sqrt.T
+                            Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                            A_mat += np.exp(-Xi_list[i6].T @ beta_new) * Si_here
+                    elif (not stored_data) and eigen_io:
+                        for i6 in range(1,len(eigenvals)):
+                            FC_here = eigenvecs[i6]@np.diag(eigenvals[i6])@eigenvecs[i6].T
+                            Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                            A_mat += np.exp(-Xi_list[i6].T @ beta_new) * Si_here                            
 
                 HAH_mat = H_pow @ A_mat @ H_pow
 
@@ -1358,17 +1528,28 @@ class Funcoin:
             steps_conv.append(step_ind)
               
             #Calculate llh for fitting result of this initial condition
-            if not stored_data:
+            if not stored_data and not eigen_io:
                 best_llh_here = np.squeeze(self._loglikelihood(beta_new, gamma_new, X_dat, Ti_list, Si_list))
             else:
                 Xi_list = fca.make_Xi_list(X_dat)
-                file_list = self.tempdata.list_files()
-                llh_val_here = 0
-                for i5 in range(len(file_list)):
-                    FC_here = self.tempdata.load_FC(file_list[i5])
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
-                    llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i5], Ti_list[i5], Si_here)
-                    llh_val_here += llh
+                if stored_data:
+                    file_list = self.tempdata.list_files()
+                    llh_val_here = 0
+                    for i6 in range(len(file_list)):
+                        if not eigen_io:
+                            FC_here = self.tempdata.load_FC(fname)
+                        else:
+                            FC_sqrt = self.tempdata.load_FC(fname)
+                            FC_here = FC_sqrt@FC_sqrt.T
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                        llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i6], Ti_list[i6], Si_here)
+                        llh_val_here += llh
+                elif (not stored_data) and eigen_io:
+                    for i6 in range(1,len(eigenvals)):
+                        FC_here = eigenvecs[i6]@np.diag(eigenvals[i6])@eigenvecs[i6].T
+                        Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i6], ddof)
+                        llh = self._loglikelihood_singlesubj(beta_new, gamma_new, Xi_list[i6], Ti_list[i6], Si_here)
+                        llh_val_here += llh
                 best_llh_here = np.squeeze(llh_val_here)
 
 
@@ -1377,9 +1558,9 @@ class Funcoin:
                 gamma_old = -gamma_old
 
             if betaLinReg:
-                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old, stored_data=stored_data, ddof = ddof)
+                beta_new = self._update_beta_LinReg(Si_list, X_dat, Ti_list, gamma_old, stored_data=stored_data, ddof = ddof, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
             else:
-                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old, stored_data=stored_data, ddof = ddof)
+                beta_new = self._optimize_only_beta(Si_list, X_dat, Ti_list, beta_old, gamma_old, stored_data=stored_data, ddof = ddof, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
         
             # best_llh_here = llh_steps[-1]
             best_gamma_here = gamma_old
@@ -1420,12 +1601,12 @@ class Funcoin:
 
         return best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps, bad_conv
 
-    def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0, low_rank = False, silent_mode=False, stored_data=False):
+    def _kth_direction(self, Y_dat, X_dat, beta_mat, gamma_mat, gamma_init, max_iter=1000, tol = 1e-4, trace_sol = 0, betaLinReg=False, FC_mode = False, Ti_list = [], ddof = 0, low_rank = False, silent_mode=False, stored_data=False, eigen_io = False, **kwargs):
         """
         Using the method from Zhao et al 2021 to find the kth gamma projection.
         """
 
-        if not stored_data:
+        if (not stored_data) and (not eigen_io):
             if FC_mode == False:
                 Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
                 Si_list_tilde = Funcoin._make_Si_list_tilde(Y_dat, gamma_mat, beta_mat)
@@ -1434,14 +1615,28 @@ class Funcoin:
         else: 
             Si_list_tilde = []
 
-        best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps, bad_conv = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data)
+        if eigen_io and (not stored_data):
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvecs']
+        else:
+            eigenvecs = None
+            eigenvals = None
+
+        best_llh, best_beta, best_gamma, best_beta_steps, best_gamma_steps, bad_conv = self._first_direction(Si_list_tilde, X_dat, Ti_list, gamma_init, max_iter, tol, trace_sol, betaLinReg=betaLinReg, low_rank=low_rank, silent_mode=silent_mode, stored_data=stored_data, ddof=ddof, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
         
         gamma_mat_new = np.append(gamma_mat, best_gamma, 1)
         beta_mat_new = np.append(beta_mat, best_beta, 1)
 
         return best_llh, beta_mat_new, gamma_mat_new, best_beta_steps, best_gamma_steps, bad_conv
 
-    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False, ddof = 0):
+    def _optimize_only_beta(self, Si_list, X_dat, Ti_list, beta_init, gamma_init, max_iter = 1000, tol = 1e-4, stored_data=False, ddof = 0, eigen_io=False, **kwargs):
+
+        if eigen_io and not stored_data:
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvecs']
+        else:
+            eigenvecs = None
+            eigenvals = None
 
         Xi_list = fca.make_Xi_list(X_dat)
         # llh_vals = [self._loglikelihood(beta_init, gamma_init, X_dat, Ti_list, Si_list)]
@@ -1451,24 +1646,39 @@ class Funcoin:
         step_ind = 0
         diff = float('inf')
         while step_ind<max_iter and diff > tol:
-            if not stored_data:
+            if (not stored_data) and (not eigen_io):
                 matlist_arr = np.array([(np.exp(-Xi_list[i].T @ beta_old) * gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] @ Xi_list[i].T  for i in range(X_dat.shape[0])])
                 matlist2_arr = np.array([(Ti_list[i] - np.exp(-Xi_list[i].T @ beta_old)@gamma_cand.T@ Si_list[i] @gamma_cand) * Xi_list[i] for i in range(X_dat.shape[0])])
                 mat_for_inv = np.sum(matlist_arr, axis=0)
                 part2 = np.sum(matlist2_arr, axis=0)
-            else:
+            elif stored_data:
                 file_list = self.tempdata.list_files()
-                FC_here = self.tempdata.load_FC(file_list[0])
+                if not eigen_io:
+                    FC_here = self.tempdata.load_FC(file_list[0])
+                else:
+                    FC_sqrt = self.tempdata.load_FC(file_list[0])
+                    FC_here = FC_sqrt@FC_sqrt.T
                 Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[0], ddof)
                 mat_for_inv = (np.exp(-Xi_list[0].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0] @ Xi_list[0].T
                 part2 = (Ti_list[0] - np.exp(-Xi_list[0].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[0]
 
-                for i5 in range(1,len(file_list)):
-                    fname = file_list[i5]
+                for i4 in range(1,len(file_list)):
+                    fname = file_list[i4]
+                    if not eigen_io:
+                        FC_here = self.tempdata.load_FC(fname)
+                    else:
+                        FC_sqrt = self.tempdata.load_FC(fname)
+                        FC_here = FC_sqrt@FC_sqrt.T
                     FC_here = self.tempdata.load_FC(fname)
-                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i5], ddof)
-                    mat_for_inv += (np.exp(-Xi_list[i5].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5] @ Xi_list[i5].T
-                    part2 += (Ti_list[i5] - np.exp(-Xi_list[i5].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i5]
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i4], ddof)
+                    mat_for_inv += (np.exp(-Xi_list[i4].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i4] @ Xi_list[i4].T
+                    part2 += (Ti_list[i4] - np.exp(-Xi_list[i4].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i4]
+            elif (not stored_data) and eigen_io:
+                for i4 in range(1,len(eigenvals)):
+                    FC_here = eigenvecs[i4]@np.diag(eigenvals[i4])@eigenvecs[i4].T
+                    Si_here = self._make_Si_or_Si_tilde_fromsingleFC(FC_here, Ti_list[i4], ddof)
+                    mat_for_inv += (np.exp(-Xi_list[i4].T @ beta_old) * gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i4] @ Xi_list[i4].T
+                    part2 += (Ti_list[i4] - np.exp(-Xi_list[i4].T @ beta_old)@gamma_cand.T@ Si_here @gamma_cand) * Xi_list[i4]
 
             try:
                 part1 = np.linalg.pinv(mat_for_inv)
@@ -1486,19 +1696,38 @@ class Funcoin:
 
         return beta_new
 
-    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init, stored_data = False, ddof = 0):
+    def _update_beta_LinReg(self, Si_list, X_dat, Ti_list, gamma_init, stored_data = False, ddof = 0, eigen_io=False, **kwargs):
         
-        if not stored_data:
+        if eigen_io and not stored_data:
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvecs']
+        else:
+            eigenvecs = None
+            eigenvals = None
+
+        if not stored_data and (not eigen_io):
             sigma_list = [Si_list[i]/Ti_list[i] for i in range(len(Si_list))]
             Z_arr = np.squeeze(np.array([gamma_init.T@sigma_list[i]@gamma_init for i in range(len(sigma_list))]))
         else:
             Z_list = []
-            file_list = self.tempdata.list_files()
-            for i3 in range(len(file_list)):
-                fname = file_list[i3]
-                FC_here = self.tempdata.load_FC(fname)
-                Z_here = gamma_init.T@(FC_here*((Ti_list[i3]-ddof)/Ti_list[i3]))@gamma_init
-                Z_list.append(Z_here) 
+            if stored_data:
+                file_list = self.tempdata.list_files()
+                for i4 in range(len(file_list)):
+                    fname = file_list[i4]
+                    if not eigen_io:
+                        FC_here = self.tempdata.load_FC(fname)
+                    else:
+                        FC_sqrt = self.tempdata.load_FC(fname)
+                        FC_here = FC_sqrt@FC_sqrt.T
+
+                    Z_here = gamma_init.T@(FC_here*((Ti_list[i4]-ddof)/Ti_list[i4]))@gamma_init
+                    Z_list.append(Z_here) 
+            elif (not stored_data) and eigen_io:
+                for i4 in range(1,len(eigenvals)):
+                    FC_here = eigenvecs[i4]@np.diag(eigenvals[i4])@eigenvecs[i4].T
+                    Z_here = gamma_init.T@(FC_here*((Ti_list[i4]-ddof)/Ti_list[i4]))@gamma_init
+                    Z_list.append(Z_here) 
+
             Z_arr = np.squeeze(np.array(Z_list))
 
         regmodel = LinearRegression().fit(X_dat[:,1:], np.log(Z_arr))
@@ -1526,7 +1755,7 @@ class Funcoin:
 
         return llh_value_singlesubj
     
-    def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = [], stored_data= False):
+    def _deviation_from_diag(self, gamma_dir, Y_dat, weighted_io = 1, dfd_aritm = 0, logtrick_io = 1, FC_mode = False, Ti_list = [], stored_data= False, ddof=0, eigen_io=False, **kwargs):
         """
         Computes the  "deviation from diagonality" (Flury and Gautschi, 1986) averaged across subjects for the projection specified by proj_mat. This function is called in the function DFD_values to determine the DFD_values sequentially for increasing number of gamma projections.
         
@@ -1543,22 +1772,39 @@ class Funcoin:
         dfd_proj: The average DfD value of the projected data matrices. 
         """
 
+        if eigen_io and not stored_data:
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvecs']
+        else:
+            eigenvecs = None
+            eigenvals = None
+
         gamma_here = self.gamma[:,:gamma_dir+1]
 
-        if FC_mode == False:
+        if FC_mode == False and (not stored_data) and (not eigen_io):
             Si_list = fca.make_Si_list(Y_dat)
             Ti_list = np.array([Y_dat[i].shape[0] for i in range(len(Si_list))])
-        else:
-            Si_list = Y_dat
+        elif FC_mode and (not stored_data) and (not eigen_io):
+            Si_list = fca.make_Si_list_from_FC_list(Y_dat, Ti_list, ddof)
             Ti_list = np.array(Ti_list)
 
-        if not stored_data:
+        if not stored_data and not eigen_io:
             mat_prods = [(gamma_here.T@Si_list[i]@gamma_here)/(Ti_list[i]) for i in range(len(Si_list))]
-        else:
+        elif stored_data:
             mat_prods = []
             file_list = self.tempdata.list_files()
             for i in range(len(file_list)):
-                FC_here = self.tempdata.load_FC(file_list[0])
+                fname = file_list[i]
+                if not eigen_io:
+                    FC_here = self.tempdata.load_FC(fname)
+                else:
+                    FC_sqrt = self.tempdata.load_FC(fname)
+                    FC_here = FC_sqrt@FC_sqrt.T
+                mat_prods.append(gamma_here.T@FC_here@gamma_here)
+        elif (not stored_data) and eigen_io:
+            mat_prods = []
+            for i3 in range(len(eigenvals)):
+                FC_here = eigenvecs[i3]@np.diag(eigenvals[i3])@eigenvecs[i3].T
                 mat_prods.append(gamma_here.T@FC_here@gamma_here)
 
         if not weighted_io:
@@ -1609,22 +1855,39 @@ class Funcoin:
 
         return Ytilde_mats
 
-    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False, stored_data = False):
+    def _store_fitresult(self, Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [], HD_mode = False, stored_data = False, eigen_io = False, **kwargs):
         
+
+        if (not stored_data) and (eigen_io):
+            eigenvecs = kwargs['eigenvecs']
+            eigenvals = kwargs['eigenvals']
+
+
         self.gamma = gamma_mat
         self.beta = beta_mat
 
         if not HD_mode:
             if (not FC_mode) and (not stored_data):
                 u_vals_training = self.transform_timeseries(Y_dat)
-                Ti_vec = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
-            elif (FC_mode) and (not stored_data):
+                Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+            elif (FC_mode) and (not stored_data) and (not eigen_io):
                 u_vals_training = self.transform_FC(Y_dat)
             elif FC_mode and stored_data:
                 files_list = self.tempdata.list_files()
                 transf_val = []
-                for i in range(len(files_list)):
-                    FC_here = self.tempdata.load_FC(files_list[i])
+                for i4 in range(len(files_list)):
+                    fname = files_list[i4]
+                    if not eigen_io:
+                        FC_here = self.tempdata.load_FC(fname)
+                    else:
+                        FC_sqrt = self.tempdata.load_FC(fname)
+                        FC_here = FC_sqrt@FC_sqrt.T
+                    transf_val.append(np.diag(gamma_mat.T@FC_here@gamma_mat))
+                u_vals_training = (np.log(np.array(transf_val)))
+            elif (not stored_data) and eigen_io:
+                transf_val = []
+                for i4 in range(len(eigenvals)):
+                    FC_here = eigenvecs[i4]@np.diag(eigenvals[i4])@eigenvecs[i4].T
                     transf_val.append(np.diag(gamma_mat.T@FC_here@gamma_mat))
                 u_vals_training = (np.log(np.array(transf_val)))
             
@@ -1636,8 +1899,8 @@ class Funcoin:
         w_io = not Ti_equal
 
         if FC_mode:
-            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list, stored_data=stored_data)
-        else:
+            dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list, stored_data=stored_data, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
+        elif (not FC_mode) and (not eigen_io) and (not stored_data):
             dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, stored_data=stored_data)
         self.dfd_values_training = np.array(dfd_values_training)
 
