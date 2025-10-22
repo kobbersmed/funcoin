@@ -1358,7 +1358,7 @@ class Funcoin:
         Ti_list_arr = np.array(Ti_list)
         if not stored_data and not eigen_io:
             Si_list_arr = np.array(Si_list)
-            sigma_bar = np.sum(Si_list_arr, axis=0)/np.sum(Ti_list_arr)
+            Si_sum = np.sum(Si_list_arr, axis=0)#/np.sum(Ti_list_arr)
         else:
             def return_Si(Si, **kwargs):
                 return Si
