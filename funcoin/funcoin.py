@@ -345,7 +345,8 @@ class Funcoin:
 
         self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
 
-        self.tempdata.cleanup()
+        if self.tempdata._tempdata:
+            self.tempdata.cleanup()
 
     def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition on the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single, full FC matrix.
@@ -411,7 +412,7 @@ class Funcoin:
         self.tempdata = TempStorage()
         filenames_full = [filepath + filenames[i] for i in range(len(filenames))]
         self.tempdata._files = filenames_full
-        self.tempdata._tempdata_type = 'FC'
+        self.tempdata._datatype = 'FC'
 
         self.decompose_FC_stored_data(X_dat, Ti_list=Ti_list, ddof = ddof, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank = low_rank, silent_mode = silent_mode)
 
@@ -1176,8 +1177,8 @@ class Funcoin:
 
         if self.tempdata is None:
             self.tempdata = TempStorage(dir=dir)
-            self.tempdata._tempdata_type = 'FC'
-        elif self.tempdata._tempdata_type == 'FC_eigen':
+            self.tempdata._datatype = 'FC'
+        elif self.tempdata._datatype == 'FC_eigen':
             raise Exception('Error. Tried to add FC data by inputting a full FC matrix. One or more FC matrices have already been added as eigenvectors and eigenvalues. Additional FC matrices must be added in the same way by using the method add_data_FC_eigen().')
         
         _ = self.tempdata.save_FC(ID, FC)
@@ -1211,8 +1212,8 @@ class Funcoin:
 
         if self.tempdata is None:
             self.tempdata = TempStorage(dir=dir)
-            self.tempdata._tempdata_type = 'FC_eigen'
-        elif self.tempdata._tempdata_type == 'FC':
+            self.tempdata._datatype = 'FC_eigen'
+        elif self.tempdata._datatype == 'FC':
             raise Exception('Error. Tried to add FC data from eigenvectors and eigenvalues. Data has already been added as one or more full FC matrices. Additional data must be provided in the same format by using the method add_data_FC().')
         
         FC_sqrt = eigenvecs@np.diag(np.sqrt(eigenvals))

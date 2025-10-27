@@ -6,13 +6,16 @@ import warnings
 class TempStorage:
     """Manages temporary files for large datasets."""
 
-    def __init__(self, dir = None, prefix="Funcoin_"):
+    def __init__(self, dir = None, prefix="Funcoin_", tempdata = True):
         # Create a temporary directory object
-        self._temp_dir_obj = tempfile.TemporaryDirectory(prefix=prefix, dir=dir)
-        self._temp_dir = self._temp_dir_obj.name  # Path to directory
-        print(f'Created a temporary folder at {self._temp_dir}')
+        if tempdata:
+            self._temp_dir_obj = tempfile.TemporaryDirectory(prefix=prefix, dir=dir)
+            self._temp_dir = self._temp_dir_obj.name  # Path to directory
+            print(f'Created a temporary folder at {self._temp_dir}')
+        
+        self._tempdata = tempdata
         self._files = []
-        self._tempdata_type = None
+        self._datatype = None
 
     def save_FC(self, ID, FC):
         """Save a FC matrix to a temporary file."""
