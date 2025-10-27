@@ -36,9 +36,9 @@ class TempStorage:
     def load_FC(self, file_path):
         """Load a FC matrix from a temporary file."""
         FC_here = np.load(file_path)
-        if self._tempdata_type == 'FC':
+        if self._datatype == 'FC':
             FC = FC_here
-        elif self._tempdata_type == 'FC_eigen':
+        elif self._datatype == 'FC_eigen':
             FC = FC_here@FC_here.T
         return FC
     
