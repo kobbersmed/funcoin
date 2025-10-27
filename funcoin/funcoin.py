@@ -409,7 +409,7 @@ class Funcoin:
                     variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
-        self.tempdata = TempStorage()
+        self.tempdata = TempStorage(tempdata=False)
         filenames_full = [filepath + filenames[i] for i in range(len(filenames))]
         self.tempdata._files = filenames_full
         self.tempdata._datatype = 'FC'
