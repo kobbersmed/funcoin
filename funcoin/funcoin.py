@@ -204,7 +204,7 @@ class Funcoin:
         gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode)
 
         self._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
-
+        
 
     def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and a matrix of covariates, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
@@ -261,7 +261,8 @@ class Funcoin:
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def decompose_FC_stored_data(self, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
-        """Performs FUNCOIN decomposition on the FC matrices provided by using the method self.add_data_FC(). The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
+        """Performs FUNCOIN decomposition on the FC matrices provided by using the method Funcoin.add_data_FC() of Funcoin.add_data_FC_eigen. The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
+        If the FC matrices are not of full rank, running time and disk space usage can be reduced by adding only the non-zero eigenvalues and their associated eigenvectors using Funcoin.add_data_FC_eigen().
         The order of the FC matrices added must match the order of the subjects' covariates in X_dat. A list of the IDs for already added FC matrices can be obtained with the method self.list_datafiles().
 
         Parameters:
@@ -330,7 +331,7 @@ class Funcoin:
             Ti_val = Ti_list
             Ti_list = [Ti_val for i in range(n_FC)]
         elif type(Ti_list) == list:
-            if len(Ti_list)!=len(n_FC):
+            if len(Ti_list)!=n_FC:
                 raise Exception('Length of list of FC matrices and list of number of time points do not match')
 
         try:
@@ -344,8 +345,10 @@ class Funcoin:
 
         self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
 
+        self.tempdata.cleanup()
+
     def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
-        """Performs FUNCOIN decomposition on the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single FC matrix.
+        """Performs FUNCOIN decomposition on the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single, full FC matrix.
         The concatenated strings of filepath and each filename must provide the valid paths to the data files.
         A list of the filenames of FC matrices used for fitting a FUNCOIN instance can be obtained with the method self.list_datafiles().
         
@@ -408,15 +411,16 @@ class Funcoin:
         self.tempdata = TempStorage()
         filenames_full = [filepath + filenames[i] for i in range(len(filenames))]
         self.tempdata._files = filenames_full
+        self.tempdata._tempdata_type = 'FC'
 
-        self.decompose_FC_stored_data(X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False)
+        self.decompose_FC_stored_data(X_dat, Ti_list=Ti_list, ddof = ddof, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank = low_rank, silent_mode = silent_mode)
 
-    def decompose_FC_eigen(self, eigenvecs_list, eigenvals_list, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, silent_mode = False, **kwargs):
-        """Performs FUNCOIN decomposition the FC matrices provided by inputting the eigenvectors and eigenvalues. This is useful if the FC matrices are large but of low rank, because it allows to input only the eigenvectors and -values corresponging to non-zero eigenvalues, thereby saving memory.
+    def decompose_FC_eigen(self, eigenvecs_list, eigenvals_list, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, silent_mode = False):
+        """Performs FUNCOIN decomposition the FC matrices provided by inputting the eigenvectors and eigenvalues as parameters. This is useful if the FC matrices are large but of low rank, because it allows to input only the eigenvectors and -values corresponging to non-zero eigenvalues, thereby saving memory.
         
         Parameters:
         -----------
-        eigenvecs: List of length [no. of subjects]. Each element is a matrix of size p-by-r_i, whose columns are r eigenvectors of the FC matrix of subject i to be used in the fitting process (p is the number of regions).
+        eigenvecs: List of length [no. of subjects]. Each element is a matrix of size p-by-r_i, whose columns are r_i eigenvectors of the FC matrix of subject i to be used in the fitting process (p is the number of regions).
         eigenvals: List of length [no. of subjects]. Each element is a vector of length r_i containing the eigenvalues corresponding to the eigenvectors specified in eigenvecs.
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
@@ -486,6 +490,7 @@ class Funcoin:
 
         if np.sum(n_eigvecs<p_eigvecs):
             low_rank = True
+            print('FC matrices were not of full rank. Using Funcoin tailored for low rank FCs.')
         else:
             low_rank = False
 
@@ -1145,6 +1150,29 @@ class Funcoin:
         return self._fitted
     
     def add_data_FC(self, ID, FC, dir=None):
+        """ 'Adds' data to the Funcoin instance by saving the provided FC matrix to a temporary file, which is deleted when the Funcoin instance is deleted.
+        When data is added for the first time, the path of the temporary folder is shown.
+        
+        Parameters:
+        -----------
+        ID: The name of the file to be saved. Must be different from all other IDs provided when adding data. 
+        FC: Numpy array of shape (p,p).
+        dir: If specified, the temporary files will be stored at the specified location. Default is None, in which case the temporary folder is created in the system's default temporary location. The path is printed the first time data is added.
+
+        Returns:
+        --------
+        self : Funcoin
+        Returns the instance itself. An instance of the TempStorage class (called tempdata) is created as an attribute of the Funcoin instance. A list of paths to the saved files can be obtained with the method Funcoin.list_datafiles().       
+
+        Attributes:
+        --------
+        tempdata: Instance of the TempStorage class which handles the temporary data files.
+
+        Raises:
+        -------
+        Exception: If trying to add data with this method when data has already been added with Funcoin.add_data_FC_eigen().
+        Warning: If trying to add data providing an ID already used. To avoid overwriting, the data is not saved in this case. 
+        """""
 
         if self.tempdata is None:
             self.tempdata = TempStorage(dir=dir)
@@ -1155,6 +1183,31 @@ class Funcoin:
         _ = self.tempdata.save_FC(ID, FC)
 
     def add_data_FC_eigen(self, ID, eigenvecs, eigenvals, dir=None):
+        """ 'Adds' data to the Funcoin instance by saving the provided data of eigenvectors and eigenvalues, which are deleted when the Funcoin instance is deleted.
+        When data is added for the first time, the path of the temporary folder is shown.
+        This can be useful if the FC matrices are large but of low rank, because it allows to input only the eigenvectors and -values corresponging to non-zero eigenvalues, thereby saving disk space and loading time during the fitting.
+        
+        Parameters:
+        -----------
+        ID: The name of the file to be saved. Must be different from all other IDs provided when adding data. 
+        FC: Numpy array of shape (p,p). The FC matrix to be added.
+        dir: If specified, the temporary files will be stored at the specified location. Default is None, in which case the temporary folder is created in the system's default temporary location. The path is printed the first time data is added.
+
+
+        Returns:
+        --------
+        self : Funcoin
+        Returns the instance itself. An instance of the TempStorage class (called tempdata) is created as an attribute of the Funcoin instance. A list of paths to the saved files can be obtained with the method Funcoin.list_datafiles().       
+
+        Attributes:
+        --------
+        tempdata: Instance of the TempStorage class which handles the temporary data files.
+
+        Raises:
+        -------
+        Exception: If trying to add data with this method when data has already been added with Funcoin.add_data_FC_eigen().
+        Warning: If trying to add data providing an ID already used. To avoid overwriting, the data is not saved in this case. 
+        """""
 
         if self.tempdata is None:
             self.tempdata = TempStorage(dir=dir)
@@ -1166,6 +1219,39 @@ class Funcoin:
         _ = self.tempdata.save_FC(ID, FC_sqrt)
 
     def list_datafiles(self):
+        """
+        Returns a list of the temporary data files saved when adding data with either Funcoin.add_data_FC() or Funcoin.add_data_FC_eigen()
+        
+        Parameters:
+        -----------
+        None
+
+        Returns:
+        --------
+        filelist: List of length [no. of subjects whose data have been added]. Each element is the full path to the temporary data file of a subject.
+        """""
+
+        try:
+            filelist = self.tempdata.list_files()
+        except:
+            print('No temporary data files have been saved.')
+            filelist = None
+
+        return filelist
+    
+    def cleanup_datafiles(self):
+        """
+        Deletes all temporary data files and the temporary folder created by calling Funcoin.add_data_FC() or Funcoin.add_data_FC_eigen(). 
+        
+        Parameters:
+        -----------
+        None
+
+        Returns:
+        --------
+        None
+        """""
+
         try:
             filelist = self.tempdata.list_files()
         except:
@@ -1384,7 +1470,6 @@ class Funcoin:
             D_nonzero = D_h[nonsing_inds]
             D_new[nonsing_inds] =  1/np.sqrt(D_nonzero)
             H_pow = U_h@np.diag(D_new)@Vh_h
-
 
         best_gamma_all = []
         best_beta_all = []

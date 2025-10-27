@@ -46,3 +46,7 @@ class TempStorage:
     def temp_dir_path(self):
         """Return the path to the temporary directory."""
         return self._temp_dir
+    
+    def cleanup(self):
+        print(f"Cleaning up {self._temp_dir_obj.name}")
+        self._temp_dir_obj.cleanup()
