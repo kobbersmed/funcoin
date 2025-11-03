@@ -25,19 +25,28 @@ class Funcoin:
     gamma: False or array-like of shape (q, n_comps). If provided, creates the FUNCOIN class with a predefined Gamma matrix. Default value False.
     beta: False or array-like of shape (n_covariates x n_comps). If provided, creates the FUNCOIN class with a predefined Beta matrix. Default value False.
     dfd_values_training: NaN or vector of size [number of projections] containing "deviation from diagonality" values for the data used to train the model (i.e. identify the projections).
-                         The attribute is automatically defined when training the model. 
+        The attribute is automatically defined when training the model. 
     residual_std_train: NaN or array of length [no. of components]. Element j is the standard deviation of the residuals for the transformed values of projection j. 
     beta_bootstrap: Nan or list of length [number of bootstrap samples] containing beta matrices from the bootstrapping procedure.
-                         The attribute is defined when running the method .decompose_bootstrap().
+        The attribute is defined when running the method .decompose_bootstrap().
     beta_CI_bootstrap: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals of the specified confidence level for the beta matrix.
-                        These are determined from the bootstrapping procedure.
+        These are determined from the bootstrapping procedure.
     beta_CI95_parametric: Nan or list of length 2 containing matrices whose elements are the lower and upper bounds of the elementwise confidence intervals for the beta matrix.
-                        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
+        Only non-Nan if fitted with betaLinReg set to true. The limits are determined from the SE of beta coefficients identified with linear regression.
     u_training: Nan or array-like of shape n_subj x [number of projections]. Contains the transformed data values (u values) of the data the model was trained on.  
     decomp_settings: Python dictionary. Stores variables defined (manually or by default) when calling the method .decompose. This includes: max_comps, gamma_init, rand_init, n_init, max_iter, tol, trace_sol, seed, betaLinReg
-                    For details, see the docstring of the decompose method.
+        For details, see the docstring of the decompose method.
     gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
     _fitted: Boolean variable, which is False when a Funcoin instance is created and set to True if the model is fitted to data (i.e. if gamma and beta are not predefined). Accessed by calling the class method .isfitted(). 
+    beta_pvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise p-values of the hypothesis test for the beta coefficient being equal to 0. Significance level is 0.05.         
+        Only non-Nan if fitted with betaLinReg set to true. The p-values are determined from coefficient-wise t-tests of beta coefficients identified with linear regression.
+    beta_tvals: Nan or array-like of shape (q,n_dir). If non-Nan, the array contains the coefficient-wise t-values of the hypothesis test for the beta coefficient being equal to 0.
+        Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
+    gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
+    decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+    dirs_bad_convergence: List of length [no. of identified projections]. After fitting the model, this list contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+    fitting_steps: List of length [no. of identified projections]. After fitting the model, this list contains the number of iterations used to reach the best fit gamma for each identified component.
+    
     """
 
     def __init__(self, gamma=False, beta=False):
@@ -58,6 +67,7 @@ class Funcoin:
         self.tempdata = None
         self._fitted = False
         self.dirs_bad_convergence = []
+        self.fitting_steps = []
 
     def __str__(self):
         firststr = 'Instance of the Functional Connectivity Integrative Normative Modelling (FUNCOIN) class. '
@@ -110,13 +120,13 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
-                        
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
+        
         Raises:
         -------
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         try:
@@ -177,14 +187,14 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
-                        
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
+                             
         Raises:
         -------
         Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         if type(Ti_list) == int or type(Ti_list) == float:
@@ -249,13 +259,13 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
-                        
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
+                         
         Raises:
         -------
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
@@ -308,14 +318,14 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
-                        
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
+                     
         Raises:
         -------
         Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         try:
@@ -399,14 +409,14 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
                         
         Raises:
         -------
         Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         self.tempdata = TempStorage(tempdata=False)
@@ -465,14 +475,14 @@ class Funcoin:
                         Only non-Nan if fitted with betaLinReg set to true. The t-values are determined from the SE of beta coefficients identified with linear regression.
         gamma_steps_all, beta_steps_all: If Funcoin is fitted with trace_sol set to True, these attributes are lists of length [no. of projections] (otherwise empty). Element j contains a list of length [no. of iterations for projection j] containing the steps in the optimization algorithm. Only the trace from the initial condition giving the best fit is kept.        
         decomp_settings: Dictionary. When running the decomposition method, settings are stored in this dictionary (e.g. number of components, initial conditions, number of iterations, tolerance, etc.) 
-                        
+        dirs_bad_convergence: List of length [no. of identified projections]. Contains the component indices (if any), where the fitting routine of gamma concluded after the maximally allowed number of optimisation iterations rather than meeting the tolerance criteria.
+        fitting_steps: List of length [no. of identified projections]. Contains the number of iterations used to reach the best fit gamma for each identified component.
+                    
         Raises:
         -------
         Exception: Raises exception if a non-empty Ti_list is input and FC_list and Ti_list are of unequal lengths.
         Exception: Raises exception if the model has already been fitted and overwrite_fit is False.
         Exception: Raises exception if no common components (gammas) can be identified.
-        Exception: Raises and handles exception, if a singular matrix occurs during the optimisation. This may happen if the problem is ill-posed, e.g. if no common components can be found or the common directions of 
-                    variance have already been identified. Upon this exception, the gamma and beta already identified are kept.
         """
 
         eigvals_lens = np.array([len(eigenvals_list[i]) for i in range(len(eigenvals_list))])
@@ -1521,10 +1531,8 @@ class Funcoin:
                     mat_for_inv = mat_list_els[:,:-1]
                     part2 = np.expand_dims(mat_list_els[:,-1],1)
 
-                try:
-                    part1 = np.linalg.pinv(mat_for_inv)
-                except:
-                    raise Exception('Singular matrix occured.')
+
+                part1 = np.linalg.pinv(mat_for_inv)
 
                 beta_new = beta_old - part1@part2
 
@@ -1599,6 +1607,8 @@ class Funcoin:
         else:
             bad_conv = False
 
+        self.fitting_steps.append(best_steps_conv)
+
         if trace_sol:
             best_gamma_steps = gamma_steps_all[best_llh_ind]
             best_beta_steps = beta_steps_all[best_llh_ind]
@@ -1670,10 +1680,7 @@ class Funcoin:
                 mat_for_inv = mat_list_els[:,:-1]
                 part2 = np.expand_dims(mat_list_els[:,-1],1)
 
-            try:
-                part1 = np.linalg.pinv(mat_for_inv)
-            except:
-                raise Exception('Singular matrix occured.')
+            part1 = np.linalg.pinv(mat_for_inv)
 
             beta_new = beta_old - part1@part2
             diff = np.max(abs(beta_old-beta_new))
