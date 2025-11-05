@@ -91,6 +91,24 @@ def make_Si_list(Y_dat):
     Si_list = [sum([np.outer(Y_dat[i][k,:],Y_dat[i][k,:]) for k in range(Y_dat[i].shape[0])]) for i in range(len(Y_dat))]
     return Si_list
 
+
+def make_Si_from_FC(FC, Ti, ddof):
+    """Calculates the Si matrix from an FC matrix. Si is the correlation matrix of subject i without dividing by the number of time points, i.e the sum of y.T@y at each time point (i.e. the scatter matrix).
+
+    Parameters:
+    ----------- 
+    FC: Array-like of shape (n_regions, n_regions). The FC matrix to be transformed
+    Ti: Type Int or float. The number of time points in the time series data for each subject. 
+    ddof: Specifies "delta degrees of freedom" for the input FC matrix. The divisor used for calculating the input FC matrix is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
+            Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.
+
+    Returns:
+    --------
+    Si: Matrix of size (p,p). Si is the scatter matrix.
+    """
+    Si = (Ti-ddof)*FC
+    return Si
+
 def make_Si_list_from_FC_list(FC_list, Ti_list, ddof):
     """Creates list of Si matrices from a list of FC matrices. Si is the correlation matrix of subject i without dividing by the number of time points, i.e the sum of y.T@y at each time point (i.e. the scatter matrix).
 
