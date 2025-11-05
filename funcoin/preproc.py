@@ -1,6 +1,5 @@
 import numpy as np
 
-
 """
 Preprocessing functions for Functional Connectivity Integrative Normative Modelling (FUNCOIN)
 @Author and maintainer of Python package: Janus Rønn Lind Kobbersmed, janus@cfin.au.dk or januslind@gmail.com
@@ -21,7 +20,6 @@ def standardise_ts(Y_dat, standard_var=True):
     """    
 
     n_subj = len(Y_dat)
-
     Y_demeaned = [Y_dat[i] - np.mean(Y_dat[i], axis=0) for i in range(n_subj)]
     
     if standard_var:
@@ -69,33 +67,28 @@ def create_TDE(ts, lags, standardise_mean = True, standardise_var = True):
         
     return ts_TDE
 
-def create_FC_TDE(ts, lags, cov_type = 'Pearson', ddof = 0, PCA_comps = False):
-    """Creates the functional connectivity .
+def create_FC_TDE(ts, lags, cov_type = 'Pearson', ddof = 0):
+    """Creates the functional connectivity (FC) matrix of time delay embedded data (TDE) without actually making the full TDE data as an intermediate step.
         
     Parameters:
     -----------
-    Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series. 
-    standard_var (optional): If True, the time series data is standardized to variance 1 (region-wise).
-    
+    ts: Array of shape (T,p) with T being the number of time points and p being the number of regions/signals.
+    lags: List of integers. Contains the lag values to be used in the TDE.
+    cov_type: String specifying the type of FC matrix to be generated. Either 'Covariance' (covariance matrix) or 'Pearson' (correlation matrix). Default value is 'Pearson').
+    ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points.
+            Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0. Default value is ddof=0.
     Returns:
     --------
-    Y_stand: List of length [number of subjects] containing standardized time series data, where each element is a matrix of shape [no. of time points]x[no. of regions]. 
+    FC_TDE: Array of shape (p*L, p*L), with p being the number of regions/signals and L being the number of lags. The matrix is the FC matrix of the TDE time series.
     """        
 
     T, p = ts.shape
     L = len(lags)
-
     lags_sort = np.sort(np.array(lags))[::-1]
-    
     start_ind = int(np.abs(np.minimum(np.min(lags_sort),0)))
     end_ind = int(T-np.maximum(np.max(lags_sort), 0))
-
     FC_TDE = np.zeros((p*L,p*L))
-
-
     diag_els = np.ones(p*L)
-
-
     for i in range(p*L):
         row = []
         chan_ind1 = int(np.floor(int(i/L)))
@@ -121,26 +114,21 @@ def create_FC_TDE(ts, lags, cov_type = 'Pearson', ddof = 0, PCA_comps = False):
             row.append(corr_val)
 
         FC_TDE[i,i+1:] = np.array(row)
-
-
         row.append(corr_val)
 
-
-
     FC_TDE = FC_TDE + FC_TDE.T + np.diag(diag_els)
-
     return FC_TDE
 
 def create_symmetric_lags(window_length):
-    """ Creates a list of symmetric .
+    """ Creates a list of symmetric lag values around 0.
     
     Parameters:
     -----------
-    window_length: The length of the window (in number of time points).
+    window_length: The length of the window (in number of time points). If window_length is odd, the lags are symmetric around 0. Otherwise, there will be one more negative lag than positive.
     
     Returns:
     --------
-    lags: List of indices corresponding to a window of the specified length around the zero-lag. Symmetric around 0, if window_length is odd, and with one more negative lag, if window_length is even. 
+    lags: List of indices corresponding to a window of the specified length around the zero-lag. 
     """""
 
     shift = int(np.floor(window_length/2))
