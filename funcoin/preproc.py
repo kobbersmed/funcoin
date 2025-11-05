@@ -30,3 +30,120 @@ def standardise_ts(Y_dat, standard_var=True):
         Y_stand = Y_demeaned
 
     return Y_stand
+
+def create_TDE(ts, lags, standardise_mean = True, standardise_var = True):
+    """ Creates a time-delay embedded version of the time series data from a single subject.
+    
+    Parameters:
+    -----------
+    ts: Array of shape (T,p), with T the number of time points and p the number of regions/time series.
+    lags: List or arrays of lags
+    standardise_mean: Boolean. If true, the mean is subtracted for each channel/region after time delay embedding making the mean of each channel equal to 0.
+    standardise_mean: Boolean. If true, the time series from each channel/region is divided by its standard deviation after time delay embedding making the variance equal to 1. 
+
+    Returns:
+    --------
+    ts_TDE: Array of shape (T-L, L*p), with T the number of time points, L the number of non-zero lags, and p the number of regions/time series
+    """""
+
+    T,p = ts.shape
+
+    L = len(lags)
+
+    ts_TDE_init = np.zeros([T, p*L])
+
+    start_ind = np.abs(np.minimum(np.min(lags),0))
+    end_ind = T-np.maximum(np.max(lags), 0)
+
+    for i1 in range(p):
+        for i2 in range(L):
+            ts_TDE_init[:, i1*L + i2] = np.roll(ts[:,i1], lags[i2], axis=0)
+
+    ts_TDE = ts_TDE_init[start_ind:end_ind,:]
+
+    if standardise_mean:
+        ts_TDE  = ts_TDE - np.mean(ts_TDE,0)
+
+    if standardise_var:
+        ts_TDE  = ts_TDE / np.std(ts_TDE,0)
+        
+    return ts_TDE
+
+def create_FC_TDE(ts, lags, cov_type = 'Pearson', ddof = 0, PCA_comps = False):
+    """Creates the functional connectivity .
+        
+    Parameters:
+    -----------
+    Y_dat: List of length [number of subjects] containing time series data for each subject. Each element of the list should be array-like of shape (T[i], p), with T[i] the number of time points for subject i and p the number of regions/time series. 
+    standard_var (optional): If True, the time series data is standardized to variance 1 (region-wise).
+    
+    Returns:
+    --------
+    Y_stand: List of length [number of subjects] containing standardized time series data, where each element is a matrix of shape [no. of time points]x[no. of regions]. 
+    """        
+
+    T, p = ts.shape
+    L = len(lags)
+
+    lags_sort = np.sort(np.array(lags))[::-1]
+    
+    start_ind = int(np.abs(np.minimum(np.min(lags_sort),0)))
+    end_ind = int(T-np.maximum(np.max(lags_sort), 0))
+
+    FC_TDE = np.zeros((p*L,p*L))
+
+
+    diag_els = np.ones(p*L)
+
+
+    for i in range(p*L):
+        row = []
+        chan_ind1 = int(np.floor(int(i/L)))
+        lag_ind1 = i % L
+
+        ts1 = ts[(start_ind+lags_sort[lag_ind1]):(end_ind+lags_sort[lag_ind1]), chan_ind1]
+
+        if cov_type == 'Covariance':
+            diag_els[i] = np.var(ts1, ddof = ddof) 
+
+        for i2 in range(i+1,p*L):
+            chan_ind2 = int(np.floor(int(i2/L)))
+            lag_ind2 = i2 % L
+
+            
+            ts2 = ts[(start_ind+lags_sort[lag_ind2]):(end_ind+lags_sort[lag_ind2]), chan_ind2]
+
+            if cov_type == 'Pearson':
+                corr_val = np.corrcoef(ts1, ts2)[0,1]
+            elif cov_type == 'Covariance':
+                corr_val = np.cov(ts1, ts2, ddof=ddof)[0,1]
+
+            row.append(corr_val)
+
+        FC_TDE[i,i+1:] = np.array(row)
+
+
+        row.append(corr_val)
+
+
+
+    FC_TDE = FC_TDE + FC_TDE.T + np.diag(diag_els)
+
+    return FC_TDE
+
+def create_symmetric_lags(window_length):
+    """ Creates a list of symmetric .
+    
+    Parameters:
+    -----------
+    window_length: The length of the window (in number of time points).
+    
+    Returns:
+    --------
+    lags: List of indices corresponding to a window of the specified length around the zero-lag. Symmetric around 0, if window_length is odd, and with one more negative lag, if window_length is even. 
+    """""
+
+    shift = int(np.floor(window_length/2))
+    lags = np.arange(window_length)-shift
+    return lags
+

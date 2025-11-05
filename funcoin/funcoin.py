@@ -77,7 +77,7 @@ class Funcoin:
         return firststr + laststr
 
     #Public methods
-    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+    def decompose(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and a matrix of covariates, X_dat. 
         
         Parameters:
@@ -99,7 +99,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                            
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                                              
         Returns
         -------
         self : Funcoin
@@ -136,11 +138,11 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank = low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode)
+        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode, scale_Ti=scale_Ti)
 
         self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [])
 
-    def decompose_FC(self, FC_list, X_dat, Ti_list, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+    def decompose_FC(self, FC_list, X_dat, Ti_list=1, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition given a list of FC matrices, FC_list, a matrix of covariates, X_dat, and a list of the number of time points in the original time series data. 
         
         Parameters:
@@ -149,6 +151,8 @@ class Funcoin:
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                     subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
+                    As of version 1.2.4, the Ti_list variable only matters if the FC matrices are based on time series with different numbers of time points. The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -166,7 +170,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                   
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                  
         Returns
         -------
         self : Funcoin
@@ -211,12 +217,12 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank=low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode)
+        gamma_mat, beta_mat = self._decomposition(FC_list, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list_init=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, scale_Ti=scale_Ti)
 
         self._store_fitresult(FC_list, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list)
         
 
-    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+    def decompose_ts(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition given a list of time series data, Y_dat, and a matrix of covariates, X_dat. This function calls the public method .decompose(), which performs deomposition on time series level.  
         
         Parameters:
@@ -238,7 +244,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                   
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                                 
         Returns
         -------
         self : Funcoin
@@ -268,9 +276,9 @@ class Funcoin:
         Exception: Raises exception if no common components (gammas) can be identified.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, scale_Ti=scale_Ti, **kwargs)
 
-    def decompose_FC_stored_data(self, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+    def decompose_FC_stored_data(self, X_dat, Ti_list=1, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition on the FC matrices provided by using the method Funcoin.add_data_FC() of Funcoin.add_data_FC_eigen. The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
         If the FC matrices are not of full rank, running time and disk space usage can be reduced by adding only the non-zero eigenvalues and their associated eigenvectors using Funcoin.add_data_FC_eigen().
         The order of the FC matrices added must match the order of the subjects' covariates in X_dat. A list of the IDs for already added FC matrices can be obtained with the method self.list_datafiles().
@@ -279,7 +287,9 @@ class Funcoin:
         -----------
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
-                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
+                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
+                    As of version 1.2.4, the Ti_list variable only matters if the FC matrices are based on time series with different numbers of time points. The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -297,7 +307,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                                  
         Returns
         -------
         self : Funcoin
@@ -351,14 +363,14 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank=low_rank, stored_data = True)
 
-        gamma_mat, beta_mat = self._decomposition([], X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=True)
+        gamma_mat, beta_mat = self._decomposition([], X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, FC_mode=True, Ti_list_init=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=True, scale_Ti=scale_Ti)
 
         self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=True)
 
         if self.tempdata._tempdata:
             self.tempdata.cleanup()
 
-    def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, **kwargs):
+    def decompose_FC_filepath(self, filenames, X_dat, filepath = '', Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition on the FC matrices provided by inputting the path and filenames of data files. The files must be numpy files (.npy), and each file contains a single, full FC matrix.
         The concatenated strings of filepath and each filename must provide the valid paths to the data files.
         A list of the filenames of FC matrices used for fitting a FUNCOIN instance can be obtained with the method self.list_datafiles().
@@ -370,7 +382,9 @@ class Funcoin:
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
-                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
+                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
+                    As of version 1.2.4, the Ti_list variable only matters if the FC matrices are based on time series with different numbers of time points. The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -388,7 +402,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                                  
         Returns
         -------
         self : Funcoin
@@ -424,9 +440,9 @@ class Funcoin:
         self.tempdata._files = filenames_full
         self.tempdata._datatype = 'FC'
 
-        self.decompose_FC_stored_data(X_dat, Ti_list=Ti_list, ddof = ddof, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank = low_rank, silent_mode = silent_mode)
+        self.decompose_FC_stored_data(X_dat, Ti_list=Ti_list, ddof = ddof, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank = low_rank, silent_mode = silent_mode, scale_Ti=scale_Ti)
 
-    def decompose_FC_eigen(self, eigenvecs_list, eigenvals_list, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, silent_mode = False):
+    def decompose_FC_eigen(self, eigenvecs_list, eigenvals_list, X_dat, Ti_list=1000, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, silent_mode = False, scale_Ti=True):
         """Performs FUNCOIN decomposition the FC matrices provided by inputting the eigenvectors and eigenvalues as parameters. This is useful if the FC matrices are large but of low rank, because it allows to input only the eigenvectors and -values corresponging to non-zero eigenvalues, thereby saving memory.
         
         Parameters:
@@ -436,7 +452,9 @@ class Funcoin:
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
-                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers. If not provided, it is assumed that all FC matrices are from timeseries with the same number of time points.
+                    subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
+                    As of version 1.2.4, the Ti_list variable only matters if the FC matrices are based on time series with different numbers of time points. The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
         max_comps: Maximal number of components (gamma), to be identified. May terminate with fewer components if a singular matrix occurs during the optimisation. This may happen 
@@ -454,7 +472,9 @@ class Funcoin:
         low_rank: Boolean. If True, the FC matrices are assumed to be rank-deficient. During the fitting routine, only singular vectors associated with non-zero singular values are considered. 
                             If the matrices are full rank, setting this parameter to True makes no difference on the fitting results, but computation time is increased. Default False.
         silent_mode: Boolean. If False (default), info about which projection is fitted and how many initial conditions have been tried is printed. If set to True, these messages are suppressed.
-                
+        scale_Ti: As of version 1.2.4, the Ti_list variable only makes a difference if the FC matrices are based on time series with different numbers of time points (i.e. if not all elements are equal). The actual values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
+                                  
         Returns
         -------
         self : Funcoin
@@ -507,7 +527,7 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, stored_data = True, eigen_io=True)
         
-        gamma_mat, beta_mat = self._decomposition([], X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, FC_mode=True, Ti_list=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=False, eigenvecs = eigenvecs_list, eigenvals = eigenvals_list)
+        gamma_mat, beta_mat = self._decomposition([], X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, FC_mode=True, Ti_list_init=Ti_list, ddof = ddof, low_rank=low_rank, silent_mode=silent_mode, stored_data=False, scale_Ti=scale_Ti, eigenvecs = eigenvecs_list, eigenvals = eigenvals_list)
 
         self._store_fitresult([], X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = True, Ti_list=Ti_list, stored_data=False, eigen_io=True, eigenvecs=eigenvecs_list, eigenvals=eigenvals_list)
 
@@ -1348,7 +1368,7 @@ class Funcoin:
 
         return laststr
 
-    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list=[], ddof = 0, low_rank = False, silent_mode = False, stored_data = False, **kwargs):
+    def _decomposition(self, Y_dat, X_dat, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed = None, betaLinReg = True, overwrite_fit = False, add_to_fit = False, FC_mode = False, Ti_list_init=[], ddof = 0, low_rank = False, silent_mode = False, stored_data = False, scale_Ti = True, **kwargs):
 
         if (not overwrite_fit) and (add_to_fit):
             gamma_mat = self.gamma
@@ -1371,6 +1391,32 @@ class Funcoin:
             eigenvals = None
             eigen_io = False
 
+        if eigen_io:
+            n_subj = len(eigenvals)
+        elif stored_data:
+            file_list = self.tempdata.list_files()
+            n_subj = len(file_list) 
+        else:
+            n_subj = len(Y_dat)
+
+        if scale_Ti:
+            scl_cands = []
+            for i3 in range(n_subj):
+                if FC_mode and (not eigen_io) and (not stored_data):
+                    eigvals_here,_ = np.linalg.eigh(Y_dat[i3])
+                    scl_cands.append(eigvals_here[-1])
+                elif stored_data:
+                    FC_here = self.tempdata.load_FC(file_list[i3])
+                    eigvals_here,_ = np.linalg.eigh(FC_here)
+                    scl_cands.append(eigvals_here[-1])
+                elif eigen_io and (not stored_data):
+                    scl_cands.append(np.max(eigenvals[i3]))
+                    
+            scl_all = [scl_cands[i]*Ti_list_init[i] for i in range(len(Ti_list_init))]
+            scl = np.max(scl_all)/10
+            Ti_list = [Ti_list_init[i]/scl for i in range(len(Ti_list_init))]
+        else:
+            Ti_list = Ti_list_init
 
         if (FC_mode == False) and (stored_data == False):
             Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
