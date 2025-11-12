@@ -136,7 +136,7 @@ class Funcoin:
 
         self._store_decomposition_options(max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, add_to_fit = add_to_fit, low_rank = low_rank)
 
-        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode, scale_Ti=scale_Ti)
+        gamma_mat, beta_mat = self._decomposition(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed = seed_initial, betaLinReg = betaLinReg, overwrite_fit=overwrite_fit, add_to_fit=add_to_fit, low_rank=low_rank, silent_mode = silent_mode)
 
         self._store_fitresult(Y_dat, X_dat, gamma_mat, beta_mat, betaLinReg, FC_mode = False, Ti_list = [])
 
@@ -149,7 +149,7 @@ class Funcoin:
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                     subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
-                    As of version 1.2.4, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    As of version 1.3.0, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
                     This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
@@ -272,7 +272,7 @@ class Funcoin:
         Exception: Raises exception if no common components (gammas) can be identified.
         """
 
-        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, scale_Ti=scale_Ti, **kwargs)
+        self.decompose(Y_dat, X_dat, max_comps=max_comps, gamma_init = gamma_init, rand_init = rand_init, n_init = n_init, max_iter = max_iter, tol=tol, trace_sol = trace_sol, seed_initial = seed_initial, betaLinReg = betaLinReg, overwrite_fit = overwrite_fit, low_rank=low_rank, silent_mode = silent_mode, **kwargs)
 
     def decompose_FC_stored_data(self, X_dat, Ti_list=1, ddof = 0, max_comps=2, gamma_init = False, rand_init = True, n_init = 20, max_iter = 1000, tol=1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, overwrite_fit = False, low_rank = False, silent_mode = False, scale_Ti=True, **kwargs):
         """Performs FUNCOIN decomposition on the FC matrices provided by using the method Funcoin.add_data_FC() of Funcoin.add_data_FC_eigen. The FC matrices are stored in temporary files, which are removed when the FUNCOIN instance is deleted.
@@ -284,7 +284,7 @@ class Funcoin:
         X_dat: Array-like of shape (n_subjects, q). First column has to be ones (does not work without the intercept).
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                     subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
-                    As of version 1.2.4, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    As of version 1.3.0, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
                     This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
@@ -379,7 +379,7 @@ class Funcoin:
         filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                     subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
-                    As of version 1.2.4, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    As of version 1.3.0, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
                     This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
@@ -449,7 +449,7 @@ class Funcoin:
         filepath: String. Specifies the path to the folder where the data files are stored. Default value is an empty string, in which case the elements in filename must by them selves point to the data files.
         Ti_list: Int or list of length [number of subjects] with integer elements. The number of time points in the time series data for all/each subject(s). If the elements are not equal, a weighted average deviation from diagonality values is computed. If all
                     subjects have the same number of time points, this can be specified with an integer instead of a list of integers.
-                    As of version 1.2.4, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
+                    As of version 1.3.0, the values of Ti_list will be scaled for better numerical precision and speed of calculations.
                     This scaling is generally recommended but can be turned of by setting the parameter scale_Ti to False.
         ddof: Specifies "delta degrees of freedom" for the input FC matrices. The divisor used for calculating the input FC matrices is T-ddof, with T being the number of time points. Here, default value is 0, which is true for Pearson correlation matrices. 
                     Unbiased covariance (sample covariance) matrix has ddof = 1, which is default when calling numpy.cov(). Population covariance is calculated with ddof=0.  
