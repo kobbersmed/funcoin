@@ -1411,11 +1411,10 @@ class Funcoin:
 
             frobnorm = np.linalg.norm(sigma_bar, 'fro')
             p_sigma = sigma_bar.shape[0]
-            scl_all = [(frobnorm/p_sigma)*Ti_list_init[i] for i in range(len(Ti_list_init))]
-            scl = np.max(scl_all)/10
+            scl_all = [(frobnorm/np.sqrt(p_sigma))*Ti_list_init[i] for i in range(len(Ti_list_init))]
+            scl = np.max(scl_all)
             Ti_list = [Ti_list_init[i]/scl for i in range(len(Ti_list_init))]
             ddof = ddof/scl
-            print(f'Scaling: {scl}')
         else:
             Ti_list = Ti_list_init
 
