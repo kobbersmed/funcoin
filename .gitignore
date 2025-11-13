@@ -23,5 +23,6 @@ MANIFEST
 
 # Jupyter Notebook
 notebooks/.ipynb_checkpoints
+notebooks/*.ai
 
 .DS_Store
