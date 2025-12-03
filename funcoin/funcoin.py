@@ -1609,8 +1609,8 @@ class Funcoin:
                 beta_steps.append(beta_new)
                 gamma_steps.append(gamma_new)
 
-                gamma_diff = np.max(np.squeeze(abs(gamma_old-gamma_new)))
-                beta_diff = np.max(np.squeeze(abs(beta_old-beta_new)))
+                gamma_diff = np.max(np.squeeze(np.abs(gamma_old-gamma_new)))
+                beta_diff = np.max(np.squeeze(np.abs(beta_old-beta_new)))
                 diff = np.maximum(gamma_diff, beta_diff)
 
                 gamma_old = gamma_new
@@ -1731,7 +1731,7 @@ class Funcoin:
             part1 = np.linalg.pinv(mat_for_inv)
 
             beta_new = beta_old - part1@part2
-            diff = np.max(abs(beta_old-beta_new))
+            diff = np.max(np.abs(beta_old-beta_new))
             beta_old = beta_new
             step_ind +=1
 
