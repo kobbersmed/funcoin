@@ -6,14 +6,15 @@ A python package for doing Functiontal Connectivity Integrative Normative Modell
 
 from .funcoin import Funcoin
 
-from pkg_resources import DistributionNotFound, get_distribution
-
 __author__ = 'Janus R. L. Kobbersmed'
 
 # Setup the version
 try:
-    __version__ = get_distribution("funcoin").version
-except DistributionNotFound:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("fcin")
+except PackageNotFoundError:
     __version__ = "unknown"
-finally:
-    del get_distribution, DistributionNotFound
