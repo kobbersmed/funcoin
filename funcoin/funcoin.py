@@ -666,7 +666,7 @@ class Funcoin:
 
         return Z_scores
 
-    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False, low_rank = False,  silent_mode = False):
+    def decompose_bootstrap(self, Y_dat, X_dat, n_samples, max_comps, CI_lvl = 0.05, gamma_init = False, rand_init = True, n_init = 20, max_iter=1000, tol = 1e-4, trace_sol = 0, seed_initial = None, betaLinReg = True, seed_bootstrap = None, overwrite_fit=False, low_rank = False,  silent_mode = True):
         """Performs FUNCOIN decomposition and bootstrapping of beta coefficients given covariate matrix, X_dat, and a list of time series data, Y_dat.
         To account for the case where the bootstrap sampling changes the order of the gammas identified, the gamma vectors of 
         the bootstrapped gammas are sorted consecutively to maximize the dot product with the gammas identified on the original dataset.
@@ -727,7 +727,7 @@ class Funcoin:
         self.bootstrap_only(Y_dat, X_dat, n_samples, CI_lvl = CI_lvl, max_iter=max_iter, tol = tol, betaLinReg = betaLinReg, seed_bootstrap = seed_bootstrap, silent_mode=silent_mode)
 
 
-    def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True, silent_mode = False):
+    def bootstrap_only(self, Y_dat, X_dat, n_samples, CI_lvl = 0.05, max_iter=1000, tol = 1e-4, betaLinReg = True, seed_bootstrap = None, bias_corrections = True, silent_mode = True):
         """For now only works with time series data (not by inputting FC matrices or using stored data). Performs bootstrapping of beta coefficients given covariate matrix, X_dat, a list of time series data, Y_dat, and predefined or fitted gamma and beta matrices (stored in the FUNCOIN instance self.gamma, self.beta) .
         
         Parameters:
@@ -1394,7 +1394,10 @@ class Funcoin:
             eigenvals = None
             eigen_io = False
 
-        if scale_Ti:
+        if not FC_mode:
+            Ti_list_init = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
+
+        if scale_Ti and FC_mode:
             if FC_mode:
                 Ti_list_init_arr = np.array(Ti_list_init)
                 if not stored_data and not eigen_io:
@@ -1418,19 +1421,13 @@ class Funcoin:
         else:
             Ti_list = Ti_list_init
 
-        
-
         if (FC_mode == False) and (stored_data == False):
             Y_dat = [Y_dat[i]-np.mean(Y_dat[i],0) for i in range(len(Y_dat))]
-            Ti_list = [Y_dat[i].shape[0] for i in range(len(Y_dat))]
             Si_list = fca.make_Si_list(Y_dat)
         elif (FC_mode == True) and (stored_data == False) and (eigen_io==False):
             Si_list = fca.make_Si_list_from_FC_list(Y_dat, Ti_list, ddof)
         elif stored_data == True or eigen_io == True:
             Si_list = []
-
-
-
 
         for i2 in range(n_dir_init,max_comps):
 
@@ -1934,7 +1931,7 @@ class Funcoin:
         if FC_mode:
             dfd_values_training = self.calc_dfd_values_FC(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, Ti_list=Ti_list, stored_data=stored_data, eigen_io=eigen_io, eigenvecs=eigenvecs, eigenvals=eigenvals)
         elif (not FC_mode) and (not eigen_io) and (not stored_data):
-            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1, stored_data=stored_data)
+            dfd_values_training = self.calc_dfd_values(Y_dat, weighted_io=w_io, dfd_aritm = 0, logtrick_io = 1)
         self.dfd_values_training = np.array(dfd_values_training)
 
 
