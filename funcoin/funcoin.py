@@ -1320,7 +1320,7 @@ class Funcoin:
         try:
             tol_shrinkage = kwargs['tol_shrinkage']
         except:
-            pass
+            tol_shrinkage = False
         else:
             self.decomp_settings['tol_shrinkage'] = tol_shrinkage
 
@@ -1341,7 +1341,7 @@ class Funcoin:
         try:
             ddof = kwargs['ddof']
         except:
-            pass
+            ddof = None
         finally:
             self.decomp_settings['ddof'] = ddof
 
