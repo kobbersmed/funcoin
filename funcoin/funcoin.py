@@ -963,6 +963,8 @@ class Funcoin:
 
         except:
             eigen_io = False
+            eigenvecs = None
+            eigenvals = None
 
         if self.gamma is False:
             raise Exception('DfD values could not be computed, because the gamma matrix is not defined. Please train the model or set the gamma_matrix manually.')
