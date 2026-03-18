@@ -1,4 +1,4 @@
-# Functional Connectivity Integrative Normative Modelling (FUNCOIN)
+# Functional Connectivity Integrative Normative Modeling (FUNCOIN)
 
 ## Dependencies:
 The funcoin module requires the following python modules:
